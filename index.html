@@ -339,11 +339,38 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
     }
     function fmt(n) { return Number(n||0).toFixed(2); }
-    function todayISO() { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
     function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
     function weekStart(d) { const date = new Date(d); const day = (date.getDay()+6)%7; // Monday=0
       date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
-    function toISO(d) { const dd = new Date(d); dd.setHours(0,0,0,0); return dd.toISOString().slice(0,10); }
+
+    function extractYmd(value){
+      if(!value) return null;
+      if(typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value)){
+        const [y,m,d] = value.split('-').map(Number);
+        return { y, m, d };
+      }
+      const dd = new Date(value);
+      if(Number.isNaN(dd.getTime())) return null;
+      return { y: dd.getFullYear(), m: dd.getMonth()+1, d: dd.getDate() };
+    }
+    function toISO(d) {
+      const parts = extractYmd(d);
+      if(!parts) return '';
+      const m = parts.m.toString().padStart(2,'0');
+      const day = parts.d.toString().padStart(2,'0');
+      return `${parts.y}-${m}-${day}`;
+    }
+    function todayISO() { return toISO(new Date()); }
+    function formatDateLocal(dateStr, variant='long'){
+      const parts = extractYmd(dateStr);
+      if(!parts) return dateStr || '-';
+      const day = parts.d.toString().padStart(2,'0');
+      const month = parts.m.toString().padStart(2,'0');
+      const monthsRu = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+      if(variant==='short') return `${day} / ${month} / ${parts.y}`;
+      return `${parts.d} ${monthsRu[parts.m-1]} ${parts.y} г.`;
+    }
+
 
     // =====================
     // ХРАНИЛИЩЕ
@@ -557,7 +584,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
             tasks.forEach(task=>{
               const card = document.createElement('div'); card.className='kanban-card';
               const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = task.title;
-              const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+(task.due_date||'-')+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+              const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+formatDateLocal(task.due_date)+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
               card.appendChild(ti); card.appendChild(mt);
               card.onclick = ()=> openTaskDetail(task.id);
 
@@ -600,7 +627,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
         const cell = document.createElement('div'); cell.className='calendar-cell';
         const head = document.createElement('div'); head.className='calendar-cell-header';
         const day = document.createElement('div'); day.className='calendar-cell-day'; day.textContent = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][ (d.getDay()+6)%7 ];
-        const dat = document.createElement('div'); dat.className='calendar-cell-date'; dat.textContent = d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0');
+        const dat = document.createElement('div'); dat.className='calendar-cell-date'; dat.textContent = formatDateLocal(toISO(d), 'short');
         head.appendChild(day); head.appendChild(dat);
         cell.appendChild(head);
 
@@ -629,7 +656,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       tasks.forEach(t=>{
         const card = document.createElement('div'); card.className='kanban-card'; card.setAttribute('draggable','true'); card.dataset.id = t.id;
         const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = t.title;
-        const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+(t.due_date||'-')+' | '+fmt(t.amount)+' / '+fmt(t.revenue);
+        const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+formatDateLocal(t.due_date)+' | '+fmt(t.amount)+' / '+fmt(t.revenue);
         card.appendChild(ti); card.appendChild(mt);
         card.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', t.id); });
         card.onclick = ()=> openTaskDetail(t.id);
@@ -657,7 +684,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       const task = getById(taskId); if(!task) return;
       store.detailTaskId = taskId;
       document.getElementById('detailTitle').textContent = task.title;
-      document.getElementById('detailMeta').textContent = 'Дедлайн: '+(task.due_date||'-')+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+      document.getElementById('detailMeta').textContent = 'Дедлайн: '+formatDateLocal(task.due_date)+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
       const list = document.getElementById('detailSubtasks'); list.innerHTML='';
       const subs = subtasksOf(taskId);
       subs.forEach(st=> list.appendChild(renderSubtaskLine(st)) );
@@ -673,7 +700,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       const fill = document.createElement('div'); fill.className='subtask-fill';
       const check = document.createElement('div'); check.className='subtask-check'; check.innerHTML = '<svg viewBox="0 0 24 24" class="subtask-icon"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"></path></svg>';
       const ripple = document.createElement('div'); ripple.className='subtask-ripple';
-      const text = document.createElement('span'); text.className='subtask-text'; text.textContent = st.title + (st.assignee? ('  · '+st.assignee):'') + (st.due_date? ('  · до '+st.due_date):'');
+      const text = document.createElement('span'); text.className='subtask-text'; text.textContent = st.title + (st.assignee? ('  · '+st.assignee):'') + (st.due_date? ('  · до '+formatDateLocal(st.due_date, 'short')):'');
       box.appendChild(fill); box.appendChild(check); box.appendChild(ripple);
       label.appendChild(box); label.appendChild(text);
       wrap.appendChild(cb); wrap.appendChild(label);
