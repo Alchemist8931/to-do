@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Личный задачник</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.min.js"></script>
+  <style>
+    /* =========================
+       CSS ПЕРЕМЕННЫЕ И БАЗА
+       ========================= */
+    :root {
+      --fon: #0f0f0f;
+      --border: #2a2a2a;
+      --text-color: #b4b1ab;
+      --muted: #8d8a84;
+      --weak: #52504c;
+      --akcent-color: #ff9933;
+      --akcent-hover: #ffab57;
+      --akcent-dim: #cc7a29;
+      --card-bg: #141414;
+      --panel-bg: #121212;
+      --success: #19c37d;
+      --danger: #ff4d4f;
+      --warning: #ffcc00;
+      --shadow: rgba(0,0,0,0.35);
+      --radius: 8px;
+    }
+
+    /* Не объединяем селекторы; каждая сущность отдельно */
+    html { background-color: var(--fon); }
+    body { margin: 0px; padding: 0px; font-family: "Comfortaa", system-ui, -apple-system, Segoe UI, Roboto, Arial; color: var(--text-color); background-color: var(--fon); }
+    .app-root { display: grid; grid-template-columns: 320px 1fr; column-gap: 20px; row-gap: 0px; padding: 20px; box-sizing: border-box; }
+
+    /* Заголовок и шапка */
+    .app-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding: 16px; border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: var(--radius); box-shadow: 0px 8px 24px rgba(0,0,0,0.2); }
+    .app-title { margin: 0px; font-size: 20px; font-weight: 700; color: var(--text-color); letter-spacing: 0.4px; }
+    .header-actions { display: flex; align-items: center; gap: 16px; }
+
+    /* Переключатель представлений (переокрашенный) */
+    .radio-inputs { position: relative; display: flex; flex-wrap: nowrap; border-radius: 8px; background-color: #1a1a1a; box-sizing: border-box; box-shadow: 0px 0px 0px 1px rgba(255,255,255,0.06); padding: 4px; width: 420px; font-size: 14px; border: 1px solid var(--border); }
+    .radio { flex: 1 1 auto; text-align: center; }
+    .radio-input { display: none; }
+    .radio-name { display: flex; cursor: pointer; align-items: center; justify-content: center; border-radius: 6px; border: none; padding: 8px 0px; color: var(--muted); transition: all 150ms ease-in-out; }
+    .radio-name:hover { background-color: rgba(255,153,51,0.08); color: var(--text-color); }
+    .radio-input:checked + .radio-name { background-color: var(--card-bg); color: var(--akcent-color); font-weight: 700; box-shadow: 0px 2px 8px rgba(0,0,0,0.2); position: relative; }
+    .radio-input:checked + .radio-name::before { content: ""; position: absolute; top: -6px; left: 50%; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--akcent-color); opacity: 0.8; }
+    .radio-input:checked + .radio-name::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--akcent-color); opacity: 0.8; }
+
+    /* Кнопка (переокрашенный вариант) */
+    .btn-container { position: relative; display: flex; align-items: center; justify-content: center; }
+    .btn { position: relative; min-width: 160px; min-height: 48px; border-radius: 8px; border: none; padding: 4px 16px; background: linear-gradient(#ffffff22, #00000011), var(--akcent-color); box-shadow: 0px 2px 1px #00000010, 0px 4px 2px #00000010, 0px 8px 4px #00000010, 0px 16px 8px #00000010, 0px 32px 16px #00000010; transition: transform 250ms cubic-bezier(0,0,0,1.8), filter 250ms cubic-bezier(0,0,0,1.8); cursor: pointer; }
+    .btn:hover { transform: scale(1.04); filter: drop-shadow(0px 16px 16px #00000022); }
+    .btn:active { transform: scale(0.96); }
+    .btn-text { display: inline-block; font-size: 18px; font-weight: 700; color: #000000; text-shadow: 0px 1px 0px #ffffff66, 0px -1px 0px #00000066; }
+
+    /* Левая панель (дерево и формы) */
+    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+    .panel { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: var(--radius); box-shadow: 0px 8px 24px rgba(0,0,0,0.2); }
+    .panel-header { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 700; color: var(--text-color); }
+    .panel-body { padding: 12px; }
+
+    /* Форма создания/редактирования */
+    .form-row { display: flex; flex-direction: column; margin-bottom: 12px; }
+    .form-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .form-input { width: 276px; height: 34px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 6px 8px; outline: none; }
+    .form-input:focus { border-color: var(--akcent-color); box-shadow: 0px 0px 0px 3px rgba(255,153,51,0.15); }
+    .form-textarea { width: 276px; height: 72px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 8px; resize: vertical; outline: none; }
+    .form-textarea:focus { border-color: var(--akcent-color); box-shadow: 0px 0px 0px 3px rgba(255,153,51,0.15); }
+    .form-row-inline { display: flex; gap: 8px; }
+    .form-small { width: 134px; height: 34px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 6px 8px; outline: none; }
+    .form-select { width: 276px; height: 34px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 6px 8px; outline: none; }
+
+    .form-actions { display: flex; gap: 8px; }
+    .btn-small { min-width: 120px; min-height: 36px; border-radius: 6px; border: 1px solid var(--border); background-color: var(--akcent-color); color: #000000; font-weight: 700; cursor: pointer; }
+    .btn-small:hover { background-color: var(--akcent-hover); }
+    .btn-ghost { min-width: 120px; min-height: 36px; border-radius: 6px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); font-weight: 700; cursor: pointer; }
+    .btn-ghost:hover { border-color: var(--akcent-color); color: var(--akcent-color); }
+
+    /* Дерево */
+    .tree-container { max-height: 560px; overflow: auto; padding-right: 6px; }
+    .tree-node { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+    .tree-node-header { display: flex; align-items: center; justify-content: space-between; }
+    .tree-node-title { font-size: 14px; font-weight: 700; color: var(--text-color); }
+    .tree-node-meta { font-size: 12px; color: var(--muted); }
+    .tree-node-children { margin-top: 6px; padding-left: 16px; }
+    .tree-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .tree-action { border: 1px solid var(--border); background-color: var(--panel-bg); color: var(--text-color); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+    .tree-action:hover { border-color: var(--akcent-color); color: var(--akcent-color); }
+
+    /* Основная область (представления) */
+    .content { display: grid; grid-template-columns: 1fr; }
+    .views { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: var(--radius); box-shadow: 0px 8px 24px rgba(0,0,0,0.2); padding: 12px; }
+    .view { display: none; }
+    .view-active { display: block; }
+
+    /* Календарь (5 недель: -2, -1, 0, +1, +2) */
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 140px; gap: 8px; }
+    .calendar-cell { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; overflow: hidden; }
+    .calendar-cell-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .calendar-cell-day { font-size: 12px; color: var(--muted); }
+    .calendar-cell-date { font-size: 12px; color: var(--text-color); font-weight: 700; }
+    .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 6px; cursor: pointer; }
+    .calendar-task-title { font-size: 12px; color: var(--text-color); font-weight: 700; }
+    .calendar-task-meta { font-size: 11px; color: var(--muted); }
+
+    /* Канбан */
+    .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; min-height: 560px; }
+    .kanban-col { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; }
+    .kanban-col-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .kanban-dropzone { min-height: 520px; border: 1px dashed var(--weak); border-radius: 6px; padding: 6px; }
+    .kanban-card { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 8px; margin-bottom: 8px; cursor: grab; }
+    .kanban-card:active { cursor: grabbing; }
+    .kanban-card-title { font-size: 14px; font-weight: 700; }
+    .kanban-card-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* Детали задачи и чекбоксы подзадач (перекрашено) */
+    .task-detail { display: none; position: fixed; left: 0px; top: 0px; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    .task-detail-card { width: 720px; max-height: 80vh; overflow: auto; border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 10px; padding: 16px; box-shadow: 0px 12px 40px rgba(0,0,0,0.45); }
+    .task-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .task-detail-title { font-size: 18px; font-weight: 700; }
+    .task-detail-close { width: 32px; height: 32px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; cursor: pointer; }
+    .task-detail-close:hover { border-color: var(--akcent-color); color: var(--akcent-color); }
+    .task-detail-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .task-detail-section { margin-top: 12px; }
+    .task-detail-subtitle { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+
+    /* Подзадачи — стиль чекбоксов по образцу, перекрашено под тему */
+    .subtask-line { display: inline-block; margin: 8px 0px; user-select: none; }
+    .subtask-checkbox { display: none; }
+    .subtask-label { display: flex; align-items: center; cursor: pointer; font-size: 14px; color: var(--text-color); font-weight: 700; transition: all 200ms ease; padding: 8px; border-radius: 8px; }
+    .subtask-label:hover { background: rgba(255,153,51,0.06); color: var(--text-color); }
+    .subtask-box { position: relative; width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px; margin-right: 12px; transition: all 300ms cubic-bezier(0.4,0,0.2,1); background: #0f0f0f; display: flex; align-items: center; justify-content: center; overflow: visible; }
+    .subtask-fill { position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; background: linear-gradient(135deg, var(--akcent-color) 0%, var(--akcent-hover) 100%); transform: scale(0); transition: all 400ms cubic-bezier(0.68,-0.55,0.265,1.55); border-radius: 4px; opacity: 0; }
+    .subtask-check { position: relative; z-index: 2; opacity: 0; transform: scale(0.3) rotate(20deg); transition: all 500ms cubic-bezier(0.68,-0.55,0.265,1.55); }
+    .subtask-icon { width: 14px; height: 14px; fill: #000000; filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.2)); }
+    .subtask-ripple { position: absolute; top: 50%; left: 50%; width: 0px; height: 0px; background: rgba(255,153,51,0.35); border-radius: 50%; transform: translate(-50%,-50%); opacity: 0; pointer-events: none; }
+    .subtask-text { transition: all 300ms ease; position: relative; }
+    .subtask-text::after { content: ""; position: absolute; top: 50%; left: 0px; width: 0px; height: 2px; background: var(--muted); transition: width 400ms ease; transform: translateY(-50%); }
+    .subtask-label:hover .subtask-box { border-color: var(--akcent-color); box-shadow: 0px 0px 0px 2px rgba(255,153,51,0.10); }
+    .subtask-checkbox:checked + .subtask-label .subtask-box { border-color: var(--akcent-color); background: var(--akcent-color); box-shadow: 0px 4px 12px rgba(255,153,51,0.25), 0px 0px 0px 2px rgba(255,153,51,0.2); }
+    .subtask-checkbox:checked + .subtask-label .subtask-fill { transform: scale(1); opacity: 1; }
+    .subtask-checkbox:checked + .subtask-label .subtask-check { opacity: 1; transform: scale(1) rotate(0deg); }
+    .subtask-checkbox:checked + .subtask-label .subtask-ripple { animation: rippleSuccess 600ms ease-out; }
+    .subtask-checkbox:checked + .subtask-label .subtask-text { color: var(--muted); }
+    .subtask-checkbox:checked + .subtask-label .subtask-text::after { width: 100%; }
+    .subtask-label:active .subtask-box { transform: scale(0.95); }
+    @keyframes rippleSuccess { 0% { width: 0px; height: 0px; opacity: 0.6; } 70% { width: 50px; height: 50px; opacity: 0.3; } 100% { width: 60px; height: 60px; opacity: 0; } }
+
+    /* Модальные окна */
+    .modal { display: none; position: fixed; left: 0px; top: 0px; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 50; }
+    .modal-card { width: 560px; max-height: 80vh; overflow: auto; border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 10px; padding: 16px; box-shadow: 0px 12px 40px rgba(0,0,0,0.45); }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+    /* Системные статусы */
+    .status-bar { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; font-size: 12px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--warning); }
+    .status-ok { background-color: var(--success); }
+    .status-bad { background-color: var(--danger); }
+
+    /* Небольшие карточки */
+    .mini { font-size: 12px; color: var(--muted); }
+
+    /* Служебное скрытие */
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="app-root">
+    <div class="app-header">
+      <h1 class="app-title">Личный задачник</h1>
+      <div class="header-actions">
+        <div class="radio-inputs" id="view-switch">
+          <label class="radio"><input class="radio-input" type="radio" name="view" value="calendar" checked /><span class="radio-name">Календарь</span></label>
+          <label class="radio"><input class="radio-input" type="radio" name="view" value="kanban" /><span class="radio-name">Канбан</span></label>
+          <label class="radio"><input class="radio-input" type="radio" name="view" value="tree" /><span class="radio-name">Дерево</span></label>
+        </div>
+        <div class="status-bar" id="statusBar"><div class="status-dot" id="statusDot"></div><span id="statusText">Оффлайн (localStorage)</span></div>
+      </div>
+    </div>
+
+    <!-- Левая колонка: управление и дерево -->
+    <div class="sidebar">
+      <div class="panel">
+        <div class="panel-header">Подключение Supabase</div>
+        <div class="panel-body">
+          <div class="form-row"><label class="form-label">SUPABASE_URL</label><input class="form-input" id="sbUrl" placeholder="https://YOUR-PROJECT.supabase.co" /></div>
+          <div class="form-row"><label class="form-label">SUPABASE_ANON_KEY</label><input class="form-input" id="sbKey" placeholder="public-anon-key" /></div>
+          <div class="form-actions">
+            <button class="btn-small" id="saveSupabase">Сохранить</button>
+            <button class="btn-ghost" id="disconnectSupabase">Отключить</button>
+          </div>
+          <div class="mini" style="margin-top:8px;">Ключи сохраняются локально и отправляются только на ваш проект.
+          В RLS-политиках используется заголовок <b>x-client-uid</b> (см. комментарий в начале файла).</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Создать</div>
+        <div class="panel-body">
+          <div class="form-row"><label class="form-label">Тип</label>
+            <select class="form-select" id="createType">
+              <option value="direction">Направление деятельности</option>
+              <option value="subdirection">Поднаправление</option>
+              <option value="project">Проект</option>
+              <option value="task">Задача</option>
+              <option value="subtask">Подзадача</option>
+            </select>
+          </div>
+          <div class="form-row" id="parentDirectionRow"><label class="form-label">Родительское направление</label><select class="form-select" id="parentDirection"></select></div>
+          <div class="form-row" id="parentSubdirectionRow"><label class="form-label">Родительское поднаправление</label><select class="form-select" id="parentSubdirection"></select></div>
+          <div class="form-row" id="parentProjectRow"><label class="form-label">Родительский проект</label><select class="form-select" id="parentProject"></select></div>
+          <div class="form-row" id="parentTaskRow"><label class="form-label">Родительская задача</label><select class="form-select" id="parentTask"></select></div>
+
+          <div class="form-row"><label class="form-label">Заголовок</label><input class="form-input" id="createTitle" placeholder="Название" /></div>
+          <div class="form-row"><label class="form-label">Описание</label><textarea class="form-textarea" id="createDescription" placeholder="Кратко"></textarea></div>
+          <div class="form-row-inline">
+            <div class="form-row"><label class="form-label">Начало</label><input class="form-small" id="createStart" type="date" /></div>
+            <div class="form-row"><label class="form-label">Завершение</label><input class="form-small" id="createDue" type="date" /></div>
+          </div>
+          <div class="form-row-inline">
+            <div class="form-row"><label class="form-label">Сумма</label><input class="form-small" id="createAmount" type="number" step="0.01" value="0" /></div>
+            <div class="form-row"><label class="form-label">Заработок</label><input class="form-small" id="createRevenue" type="number" step="0.01" value="0" /></div>
+          </div>
+          <div class="form-row" id="assigneeRow"><label class="form-label">Ответственный</label><input class="form-input" id="createAssignee" placeholder="ФИО или @" /></div>
+          <div class="form-row" id="statusRow"><label class="form-label">Статус (для задач/подзадач)</label>
+            <select class="form-select" id="createStatus">
+              <option value="created">создано</option>
+              <option value="in_progress">в работе</option>
+              <option value="done">завершено</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button class="btn-small" id="createSave">Добавить</button>
+            <button class="btn-ghost" id="createReset">Сброс</button>
+          </div>
+          <div class="mini" style="margin-top:8px;">Для задач сумма и заработок пересчитываются по подзадачам автоматически.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Иерархия</div>
+        <div class="panel-body">
+          <div class="tree-container" id="treeContainer"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Правая колонка: представления -->
+    <div class="content">
+      <div class="views">
+        <div class="view view-active" id="view-calendar">
+          <div class="mini" style="margin-bottom:8px;">Календарь: две предыдущих недели, текущая, две следующих. Отображаются только задачи (без подзадач).</div>
+          <div class="calendar" id="calendarGrid"></div>
+        </div>
+        <div class="view" id="view-kanban">
+          <div class="kanban" id="kanbanRoot">
+            <div class="kanban-col">
+              <div class="kanban-col-title">создано</div>
+              <div class="kanban-dropzone" data-status="created" id="col-created"></div>
+            </div>
+            <div class="kanban-col">
+              <div class="kanban-col-title">в работе</div>
+              <div class="kanban-dropzone" data-status="in_progress" id="col-in_progress"></div>
+            </div>
+            <div class="kanban-col">
+              <div class="kanban-col-title">завершено</div>
+              <div class="kanban-dropzone" data-status="done" id="col-done"></div>
+            </div>
+          </div>
+        </div>
+        <div class="view" id="view-tree">
+          <div class="mini" style="margin-bottom:8px;">Дерево: направления → поднаправления → проекты → задачи → подзадачи.</div>
+          <div class="tree-container" id="fullTree"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модалка деталей задачи -->
+    <div class="task-detail" id="taskDetail">
+      <div class="task-detail-card">
+        <div class="task-detail-header">
+          <div class="task-detail-title" id="detailTitle">Задача</div>
+          <button class="task-detail-close" id="detailClose">✕</button>
+        </div>
+        <div class="task-detail-meta" id="detailMeta"></div>
+        <div class="task-detail-section">
+          <div class="task-detail-subtitle">Подзадачи</div>
+          <div id="detailSubtasks"></div>
+          <div class="form-actions" style="margin-top:10px;">
+            <button class="btn-small" id="detailAddSubtask">Добавить подзадачу</button>
+            <button class="btn-ghost" id="detailRecalc">Пересчитать суммы</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модалка быстрого создания подзадачи -->
+    <div class="modal" id="subtaskModal">
+      <div class="modal-card">
+        <div class="modal-title">Новая подзадача</div>
+        <div class="form-row"><label class="form-label">Заголовок</label><input class="form-input" id="stTitle" /></div>
+        <div class="form-row"><label class="form-label">Описание</label><textarea class="form-textarea" id="stDesc"></textarea></div>
+        <div class="form-row-inline">
+          <div class="form-row"><label class="form-label">Начало</label><input class="form-small" id="stStart" type="date" /></div>
+          <div class="form-row"><label class="form-label">Завершение</label><input class="form-small" id="stDue" type="date" /></div>
+        </div>
+        <div class="form-row-inline">
+          <div class="form-row"><label class="form-label">Сумма</label><input class="form-small" id="stAmount" type="number" step="0.01" value="0" /></div>
+          <div class="form-row"><label class="form-label">Заработок</label><input class="form-small" id="stRevenue" type="number" step="0.01" value="0" /></div>
+        </div>
+        <div class="form-row"><label class="form-label">Ответственный</label><input class="form-input" id="stAssignee" /></div>
+        <div class="form-row"><label class="form-label">Статус</label>
+          <select class="form-select" id="stStatus">
+            <option value="created">создано</option>
+            <option value="in_progress">в работе</option>
+            <option value="done">завершено</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-small" id="stSave">Сохранить</button>
+          <button class="btn-ghost" id="stCancel">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =====================
+    // УТИЛИТЫ
+    // =====================
+    function uuidv4() {
+      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+    }
+    function fmt(n) { return Number(n||0).toFixed(2); }
+    function todayISO() { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+    function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+    function weekStart(d) { const date = new Date(d); const day = (date.getDay()+6)%7; // Monday=0
+      date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
+    function toISO(d) { const dd = new Date(d); dd.setHours(0,0,0,0); return dd.toISOString().slice(0,10); }
+
+    // =====================
+    // ХРАНИЛИЩЕ
+    // =====================
+    const store = {
+      client: null,
+      mode: 'local', // 'supabase' | 'local'
+      clientUid: null,
+      items: [], // все сущности из единой таблицы
+      detailTaskId: null
+    };
+
+    // Уникальный client_uid (для RLS) — сохраняем локально
+    (function ensureClientUid(){
+      let uid = localStorage.getItem('client_uid');
+      if(!uid){ uid = uuidv4(); localStorage.setItem('client_uid', uid); }
+      store.clientUid = uid;
+    })();
+
+    // =====================
+    // SUPABASE ИЛИ LOCAL
+    // =====================
+    function setStatus(ok, text){
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+      if(ok){ dot.classList.add('status-ok'); dot.classList.remove('status-bad'); txt.textContent = text || 'Онлайн (Supabase)'; }
+      else { dot.classList.remove('status-ok'); dot.classList.remove('status-bad'); txt.textContent = text || 'Оффлайн (localStorage)'; }
+    }
+
+    async function initSupabase(){
+      const url = localStorage.getItem('sb_url');
+      const key = localStorage.getItem('sb_key');
+      if(url && key){
+        try{
+          store.client = supabase.createClient(url, key, {
+            global: { headers: { 'x-client-uid': store.clientUid } }
+          });
+          store.mode = 'supabase';
+          setStatus(true);
+          await loadAll();
+          subscribeRealtime();
+        }catch(e){
+          console.error(e);
+          store.mode = 'local';
+          setStatus(false, 'Ошибка подключения — localStorage');
+          await loadAll();
+        }
+      } else {
+        store.mode = 'local';
+        setStatus(false);
+        await loadAll();
+      }
+    }
+
+    // =====================
+    // CRUD
+    // =====================
+    async function loadAll(){
+      if(store.mode === 'supabase'){
+        const { data, error } = await store.client.from('work_items').select('*').order('type', { ascending: true }).order('created_at', { ascending: true });
+        if(error){ console.error(error); store.items = []; }
+        else { store.items = data || []; }
+      } else {
+        const raw = localStorage.getItem('work_items_local') || '[]';
+        store.items = JSON.parse(raw);
+      }
+      renderAll();
+    }
+
+    function persistLocal(){
+      localStorage.setItem('work_items_local', JSON.stringify(store.items));
+    }
+
+    async function upsertItem(rec){
+      if(!rec.id){ rec.id = uuidv4(); }
+      rec.updated_at = new Date().toISOString();
+      if(store.mode === 'supabase'){
+        rec.client_uid = store.clientUid;
+        const { data, error } = await store.client.from('work_items').upsert(rec).select('*');
+        if(error){ console.error(error); alert('Ошибка сохранения: '+ error.message); }
+      } else {
+        const idx = store.items.findIndex(x=>x.id===rec.id);
+        if(idx>=0){ store.items[idx] = rec; } else { store.items.push(rec); }
+        persistLocal();
+      }
+    }
+
+    async function deleteItem(id){
+      if(store.mode === 'supabase'){
+        const { error } = await store.client.from('work_items').delete().eq('id', id);
+        if(error){ console.error(error); alert('Ошибка удаления: '+error.message); }
+      } else {
+        store.items = store.items.filter(x=>x.id!==id && x.parent_id!==id);
+        persistLocal();
+      }
+      await loadAll();
+    }
+
+    function subscribeRealtime(){
+      if(store.mode !== 'supabase') return;
+      store.client.channel('work_items_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'work_items' }, payload => {
+          // Простая стратегия — перечитать всё.
+          loadAll();
+        })
+        .subscribe();
+    }
+
+    // =====================
+    // ВСПОМОГАТЕЛЬНОЕ: выборки
+    // =====================
+    function listByType(type){ return store.items.filter(x=>x.type===type); }
+    function childrenOf(parentId){ return store.items.filter(x=>x.parent_id===parentId); }
+    function getById(id){ return store.items.find(x=>x.id===id); }
+    function tasksOnly(){ return store.items.filter(x=>x.type==='task'); }
+    function subtasksOf(taskId){ return store.items.filter(x=>x.type==='subtask' && x.parent_id===taskId); }
+
+    function recalcTaskSums(taskId){
+      const subs = subtasksOf(taskId);
+      const sumAmount = subs.reduce((a,s)=>a+Number(s.amount||0),0);
+      const sumRevenue = subs.reduce((a,s)=>a+Number(s.revenue||0),0);
+      const t = getById(taskId);
+      if(t){ t.amount = sumAmount; t.revenue = sumRevenue; upsertItem(t); }
+    }
+
+    // =====================
+    // РЕНДЕРИНГ
+    // =====================
+    function renderAll(){
+      fillParentSelectors();
+      renderTreeSidebar();
+      renderCalendar();
+      renderKanban();
+      renderFullTree();
+    }
+
+    function renderTreeSidebar(){
+      const root = document.getElementById('treeContainer');
+      root.innerHTML = '';
+      const directions = listByType('direction');
+      directions.forEach(dir=>{
+        const node = buildNode(dir, 'direction');
+        const subs = store.items.filter(x=>x.type==='subdirection' && x.direction_id===dir.id);
+        const childWrap = document.createElement('div'); childWrap.className='tree-node-children';
+        subs.forEach(sd=>{
+          const n2 = buildNode(sd, 'subdirection');
+          const projs = store.items.filter(x=>x.type==='project' && x.subdirection_id===sd.id);
+          const wrap2 = document.createElement('div'); wrap2.className='tree-node-children';
+          projs.forEach(p=>{
+            const n3 = buildNode(p, 'project');
+            wrap2.appendChild(n3);
+          });
+          n2.appendChild(wrap2);
+          childWrap.appendChild(n2);
+        });
+        node.appendChild(childWrap);
+        root.appendChild(node);
+      });
+    }
+
+    function buildNode(item, kind){
+      const el = document.createElement('div'); el.className='tree-node';
+      const h = document.createElement('div'); h.className='tree-node-header';
+      const t = document.createElement('div'); t.className='tree-node-title'; t.textContent = item.title;
+      const m = document.createElement('div'); m.className='tree-node-meta'; m.textContent = kind;
+      const a = document.createElement('div'); a.className='tree-actions';
+
+      const btnAdd = document.createElement('button'); btnAdd.className='tree-action'; btnAdd.textContent = 'Добавить';
+      btnAdd.onclick = ()=> openCreateChild(kind, item);
+
+      const btnDel = document.createElement('button'); btnDel.className='tree-action'; btnDel.textContent = 'Удалить';
+      btnDel.onclick = ()=> { if(confirm('Удалить вместе с дочерними?')) deleteItem(item.id); };
+
+      h.appendChild(t); h.appendChild(m);
+      el.appendChild(h);
+      a.appendChild(btnAdd); a.appendChild(btnDel);
+      el.appendChild(a);
+      return el;
+    }
+
+    // Полное дерево справа (с задачами и подзадачами)
+    function renderFullTree(){
+      const root = document.getElementById('fullTree');
+      root.innerHTML = '';
+      const directions = listByType('direction');
+      directions.forEach(dir=>{
+        const dirNode = document.createElement('div'); dirNode.className='tree-node';
+        const h = document.createElement('div'); h.className='tree-node-header';
+        const t = document.createElement('div'); t.className='tree-node-title'; t.textContent = 'Направление: '+dir.title;
+        const m = document.createElement('div'); m.className='tree-node-meta'; m.textContent = '';
+        h.appendChild(t); h.appendChild(m); dirNode.appendChild(h);
+
+        const sdWrap = document.createElement('div'); sdWrap.className='tree-node-children';
+        const subs = store.items.filter(x=>x.type==='subdirection' && x.direction_id===dir.id);
+        subs.forEach(sd=>{
+          const sdNode = document.createElement('div'); sdNode.className='tree-node';
+          const h2 = document.createElement('div'); h2.className='tree-node-header';
+          const t2 = document.createElement('div'); t2.className='tree-node-title'; t2.textContent = 'Поднаправление: '+sd.title;
+          const m2 = document.createElement('div'); m2.className='tree-node-meta'; h2.appendChild(t2); h2.appendChild(m2); sdNode.appendChild(h2);
+
+          const prWrap = document.createElement('div'); prWrap.className='tree-node-children';
+          const projs = store.items.filter(x=>x.type==='project' && x.subdirection_id===sd.id);
+          projs.forEach(p=>{
+            const pNode = document.createElement('div'); pNode.className='tree-node';
+            const h3 = document.createElement('div'); h3.className='tree-node-header';
+            const t3 = document.createElement('div'); t3.className='tree-node-title'; t3.textContent = 'Проект: '+p.title;
+            const m3 = document.createElement('div'); m3.className='tree-node-meta'; h3.appendChild(t3); h3.appendChild(m3); pNode.appendChild(h3);
+
+            const tkWrap = document.createElement('div'); tkWrap.className='tree-node-children';
+            const tasks = store.items.filter(x=>x.type==='task' && x.project_id===p.id);
+            tasks.forEach(task=>{
+              const card = document.createElement('div'); card.className='kanban-card';
+              const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = task.title;
+              const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+(task.due_date||'-')+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+              card.appendChild(ti); card.appendChild(mt);
+              card.onclick = ()=> openTaskDetail(task.id);
+
+              const stWrap = document.createElement('div'); stWrap.className='tree-node-children';
+              const subs2 = subtasksOf(task.id);
+              subs2.forEach(st=>{
+                const stLine = document.createElement('div'); stLine.className='mini'; stLine.textContent = '• '+st.title+' ('+humanStatus(st.status)+')';
+                stWrap.appendChild(stLine);
+              });
+
+              tkWrap.appendChild(card);
+              tkWrap.appendChild(stWrap);
+            });
+
+            pNode.appendChild(tkWrap);
+            prWrap.appendChild(pNode);
+          });
+
+          sdNode.appendChild(prWrap);
+          sdWrap.appendChild(sdNode);
+        });
+
+        dirNode.appendChild(sdWrap);
+        root.appendChild(dirNode);
+      });
+    }
+
+    function humanStatus(s){ if(s==='created') return 'создано'; if(s==='in_progress') return 'в работе'; if(s==='done') return 'завершено'; return s; }
+
+    // Календарь: 5 недель вокруг текущей
+    function renderCalendar(){
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML='';
+      const now = new Date();
+      const ws = weekStart(now);
+      const start = addDays(ws, -14); // -2 недели
+      const daysTotal = 35; // 5 недель
+      for(let i=0;i<daysTotal;i++){
+        const d = addDays(start, i);
+        const cell = document.createElement('div'); cell.className='calendar-cell';
+        const head = document.createElement('div'); head.className='calendar-cell-header';
+        const day = document.createElement('div'); day.className='calendar-cell-day'; day.textContent = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][ (d.getDay()+6)%7 ];
+        const dat = document.createElement('div'); dat.className='calendar-cell-date'; dat.textContent = d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0');
+        head.appendChild(day); head.appendChild(dat);
+        cell.appendChild(head);
+
+        const dayISO = toISO(d);
+        const dayTasks = tasksOnly().filter(t=> t.due_date === dayISO);
+        dayTasks.forEach(t=>{
+          const card = document.createElement('div'); card.className='calendar-task';
+          const ti = document.createElement('div'); ti.className='calendar-task-title'; ti.textContent = t.title;
+          const mt = document.createElement('div'); mt.className='calendar-task-meta'; mt.textContent = 'Сумма: '+fmt(t.amount)+' | Заработок: '+fmt(t.revenue)+' | '+humanStatus(t.status);
+          card.appendChild(ti); card.appendChild(mt);
+          card.onclick = ()=> openTaskDetail(t.id);
+          cell.appendChild(card);
+        });
+        grid.appendChild(cell);
+      }
+    }
+
+    // Канбан
+    function renderKanban(){
+      const stCreated = document.getElementById('col-created');
+      const stInprog = document.getElementById('col-in_progress');
+      const stDone = document.getElementById('col-done');
+      stCreated.innerHTML=''; stInprog.innerHTML=''; stDone.innerHTML='';
+
+      const tasks = tasksOnly();
+      tasks.forEach(t=>{
+        const card = document.createElement('div'); card.className='kanban-card'; card.setAttribute('draggable','true'); card.dataset.id = t.id;
+        const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = t.title;
+        const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+(t.due_date||'-')+' | '+fmt(t.amount)+' / '+fmt(t.revenue);
+        card.appendChild(ti); card.appendChild(mt);
+        card.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', t.id); });
+        card.onclick = ()=> openTaskDetail(t.id);
+        if(t.status==='created') stCreated.appendChild(card);
+        if(t.status==='in_progress') stInprog.appendChild(card);
+        if(t.status==='done') stDone.appendChild(card);
+      });
+
+      document.querySelectorAll('.kanban-dropzone').forEach(zone=>{
+        zone.addEventListener('dragover', (e)=>{ e.preventDefault(); zone.style.backgroundColor='rgba(255,153,51,0.05)'; });
+        zone.addEventListener('dragleave', ()=>{ zone.style.backgroundColor='transparent'; });
+        zone.addEventListener('drop', async (e)=>{
+          e.preventDefault(); zone.style.backgroundColor='transparent';
+          const id = e.dataTransfer.getData('text/plain');
+          const t = getById(id); if(!t) return;
+          t.status = zone.dataset.status;
+          await upsertItem(t);
+          renderKanban();
+        });
+      });
+    }
+
+    // Детальная карточка задачи
+    function openTaskDetail(taskId){
+      const task = getById(taskId); if(!task) return;
+      store.detailTaskId = taskId;
+      document.getElementById('detailTitle').textContent = task.title;
+      document.getElementById('detailMeta').textContent = 'Дедлайн: '+(task.due_date||'-')+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+      const list = document.getElementById('detailSubtasks'); list.innerHTML='';
+      const subs = subtasksOf(taskId);
+      subs.forEach(st=> list.appendChild(renderSubtaskLine(st)) );
+      document.getElementById('taskDetail').style.display = 'flex';
+    }
+    function closeTaskDetail(){ document.getElementById('taskDetail').style.display = 'none'; }
+
+    function renderSubtaskLine(st){
+      const wrap = document.createElement('div'); wrap.className='subtask-line';
+      const cb = document.createElement('input'); cb.className='subtask-checkbox'; cb.type='checkbox'; cb.id='st_'+st.id; cb.checked = st.status==='done';
+      const label = document.createElement('label'); label.className='subtask-label'; label.setAttribute('for','st_'+st.id);
+      const box = document.createElement('div'); box.className='subtask-box';
+      const fill = document.createElement('div'); fill.className='subtask-fill';
+      const check = document.createElement('div'); check.className='subtask-check'; check.innerHTML = '<svg viewBox="0 0 24 24" class="subtask-icon"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"></path></svg>';
+      const ripple = document.createElement('div'); ripple.className='subtask-ripple';
+      const text = document.createElement('span'); text.className='subtask-text'; text.textContent = st.title + (st.assignee? ('  · '+st.assignee):'') + (st.due_date? ('  · до '+st.due_date):'');
+      box.appendChild(fill); box.appendChild(check); box.appendChild(ripple);
+      label.appendChild(box); label.appendChild(text);
+      wrap.appendChild(cb); wrap.appendChild(label);
+
+      cb.addEventListener('change', async ()=>{
+        st.status = cb.checked ? 'done' : 'in_progress';
+        await upsertItem(st);
+        recalcTaskSums(st.parent_id);
+        await loadAll();
+        openTaskDetail(st.parent_id); // обновить список
+      });
+      return wrap;
+    }
+
+    // Быстрое добавление подзадачи из модалки деталей
+    function openSubtaskModal(){ document.getElementById('subtaskModal').style.display='flex'; }
+    function closeSubtaskModal(){ document.getElementById('subtaskModal').style.display='none'; }
+
+    // =====================
+    // ФОРМЫ
+    // =====================
+    function fillParentSelectors(){
+      const dirs = listByType('direction');
+      selFill(document.getElementById('parentDirection'), dirs);
+      const selectedDir = document.getElementById('parentDirection').value;
+      const subs = store.items.filter(x=>x.type==='subdirection' && x.direction_id===selectedDir);
+      selFill(document.getElementById('parentSubdirection'), subs);
+      const selectedSd = document.getElementById('parentSubdirection').value;
+      const projects = store.items.filter(x=>x.type==='project' && x.subdirection_id===selectedSd);
+      selFill(document.getElementById('parentProject'), projects);
+      const selectedPr = document.getElementById('parentProject').value;
+      const tasks = store.items.filter(x=>x.type==='task' && x.project_id===selectedPr);
+      selFill(document.getElementById('parentTask'), tasks);
+    }
+
+    function selFill(sel, arr){
+      const v = sel.value;
+      sel.innerHTML = '';
+      arr.forEach(x=>{ const o=document.createElement('option'); o.value=x.id; o.textContent=x.title; sel.appendChild(o); });
+      if(arr.find(x=>x.id===v)) sel.value=v;
+    }
+
+    function openCreateChild(kind, item){
+      const typeSel = document.getElementById('createType');
+      if(kind==='direction'){ typeSel.value = 'subdirection'; document.getElementById('parentDirection').value = item.id; }
+      if(kind==='subdirection'){ typeSel.value = 'project'; document.getElementById('parentDirection').value = item.direction_id; document.getElementById('parentSubdirection').value = item.id; }
+      if(kind==='project'){ typeSel.value = 'task'; document.getElementById('parentDirection').value = getById(item.subdirection_id).direction_id; document.getElementById('parentSubdirection').value = item.subdirection_id; document.getElementById('parentProject').value = item.id; }
+      // Фокус на заголовок
+      document.getElementById('createTitle').focus();
+      updateCreateVisibility();
+    }
+
+    function updateCreateVisibility(){
+      const t = document.getElementById('createType').value;
+      const dR = document.getElementById('parentDirectionRow');
+      const sdR = document.getElementById('parentSubdirectionRow');
+      const pR = document.getElementById('parentProjectRow');
+      const tkR = document.getElementById('parentTaskRow');
+      const asR = document.getElementById('assigneeRow');
+      const stR = document.getElementById('statusRow');
+
+      dR.style.display = (t!=='direction') ? 'block':'none';
+      sdR.style.display = (t==='project' || t==='task' || t==='subtask') ? 'block':'none';
+      pR.style.display = (t==='task' || t==='subtask') ? 'block':'none';
+      tkR.style.display = (t==='subtask') ? 'block':'none';
+      asR.style.display = (t==='subtask') ? 'block':'none';
+      stR.style.display = (t==='task' || t==='subtask') ? 'block':'none';
+
+      const amountEl = document.getElementById('createAmount');
+      const revenueEl = document.getElementById('createRevenue');
+      if(t==='task'){ amountEl.disabled = true; revenueEl.disabled = true; } else { amountEl.disabled = false; revenueEl.disabled = false; }
+    }
+
+    async function handleCreate(){
+      const type = document.getElementById('createType').value;
+      const title = document.getElementById('createTitle').value.trim();
+      if(!title){ alert('Нужен заголовок'); return; }
+      const description = document.getElementById('createDescription').value.trim();
+      const start = document.getElementById('createStart').value || null;
+      const due = document.getElementById('createDue').value || null;
+      const amount = Number(document.getElementById('createAmount').value||0);
+      const revenue = Number(document.getElementById('createRevenue').value||0);
+      const assignee = document.getElementById('createAssignee').value || null;
+      const status = document.getElementById('createStatus').value;
+
+      const base = { type, title, description, start_date: start, due_date: due, amount: amount, revenue: revenue, assignee: assignee, status: status };
+
+      if(type==='direction'){
+        base.parent_id = null; base.direction_id = null; base.subdirection_id = null; base.project_id = null;
+      }
+      if(type==='subdirection'){
+        const dirId = document.getElementById('parentDirection').value; if(!dirId){ alert('Выберите направление'); return; }
+        base.parent_id = dirId; base.direction_id = dirId; base.subdirection_id = null; base.project_id = null;
+      }
+      if(type==='project'){
+        const sdId = document.getElementById('parentSubdirection').value; if(!sdId){ alert('Выберите поднаправление'); return; }
+        const dirId = getById(sdId)?.direction_id; base.parent_id = sdId; base.direction_id = dirId; base.subdirection_id = sdId; base.project_id = null;
+      }
+      if(type==='task'){
+        const prId = document.getElementById('parentProject').value; if(!prId){ alert('Выберите проект'); return; }
+        const sdId = getById(prId)?.subdirection_id; const dirId = getById(sdId)?.direction_id;
+        base.parent_id = prId; base.direction_id = dirId; base.subdirection_id = sdId; base.project_id = prId; base.amount = 0; base.revenue = 0;
+      }
+      if(type==='subtask'){
+        const tkId = document.getElementById('parentTask').value; if(!tkId){ alert('Выберите задачу'); return; }
+        const prId = getById(tkId)?.project_id; const sdId = getById(prId)?.subdirection_id; const dirId = getById(sdId)?.direction_id;
+        base.parent_id = tkId; base.direction_id = dirId; base.subdirection_id = sdId; base.project_id = prId;
+      }
+
+      await upsertItem(base);
+      await loadAll();
+      if(type==='subtask'){ recalcTaskSums(base.parent_id); }
+      clearCreateForm();
+    }
+
+    function clearCreateForm(){
+      document.getElementById('createTitle').value='';
+      document.getElementById('createDescription').value='';
+      document.getElementById('createStart').value='';
+      document.getElementById('createDue').value='';
+      document.getElementById('createAmount').value='0';
+      document.getElementById('createRevenue').value='0';
+      document.getElementById('createAssignee').value='';
+    }
+
+    // =====================
+    // ПЕРЕКЛЮЧЕНИЕ ВИДОВ
+    // =====================
+    function initViewSwitch(){
+      document.querySelectorAll('#view-switch .radio-input').forEach(r=>{
+        r.addEventListener('change', ()=>{
+          showView(r.value);
+        });
+      });
+    }
+    function showView(name){
+      document.getElementById('view-calendar').classList.remove('view-active');
+      document.getElementById('view-kanban').classList.remove('view-active');
+      document.getElementById('view-tree').classList.remove('view-active');
+      if(name==='calendar') document.getElementById('view-calendar').classList.add('view-active');
+      if(name==='kanban') document.getElementById('view-kanban').classList.add('view-active');
+      if(name==='tree') document.getElementById('view-tree').classList.add('view-active');
+    }
+
+    // =====================
+    // ОБРАБОТЧИКИ UI
+    // =====================
+    document.getElementById('saveSupabase').addEventListener('click', async ()=>{
+      const url = document.getElementById('sbUrl').value.trim();
+      const key = document.getElementById('sbKey').value.trim();
+      if(!url || !key){ alert('Нужно указать URL и KEY'); return; }
+      localStorage.setItem('sb_url', url); localStorage.setItem('sb_key', key);
+      await initSupabase();
+    });
+    document.getElementById('disconnectSupabase').addEventListener('click', async ()=>{
+      localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key');
+      store.mode = 'local'; setStatus(false);
+      await loadAll();
+    });
+
+    document.getElementById('createType').addEventListener('change', ()=>{ updateCreateVisibility(); });
+    document.getElementById('parentDirection').addEventListener('change', ()=>{ fillParentSelectors(); });
+    document.getElementById('parentSubdirection').addEventListener('change', ()=>{ fillParentSelectors(); });
+    document.getElementById('parentProject').addEventListener('change', ()=>{ fillParentSelectors(); });
+
+    document.getElementById('createSave').addEventListener('click', handleCreate);
+    document.getElementById('createReset').addEventListener('click', clearCreateForm);
+
+    document.getElementById('detailClose').addEventListener('click', closeTaskDetail);
+    document.getElementById('detailAddSubtask').addEventListener('click', ()=>{ openSubtaskModal(); });
+    document.getElementById('detailRecalc').addEventListener('click', ()=>{ if(store.detailTaskId){ recalcTaskSums(store.detailTaskId); loadAll(); } });
+
+    document.getElementById('stCancel').addEventListener('click', closeSubtaskModal);
+    document.getElementById('stSave').addEventListener('click', async ()=>{
+      const tkId = store.detailTaskId; if(!tkId){ alert('Нет задачи'); return; }
+      const base = {
+        type: 'subtask', title: (document.getElementById('stTitle').value||'Подзадача'),
+        description: document.getElementById('stDesc').value||'',
+        start_date: document.getElementById('stStart').value||null,
+        due_date: document.getElementById('stDue').value||null,
+        amount: Number(document.getElementById('stAmount').value||0),
+        revenue: Number(document.getElementById('stRevenue').value||0),
+        assignee: document.getElementById('stAssignee').value||null,
+        status: document.getElementById('stStatus').value,
+        parent_id: tkId
+      };
+      const prId = getById(tkId)?.project_id; const sdId = getById(prId)?.subdirection_id; const dirId = getById(sdId)?.direction_id;
+      base.project_id = prId; base.subdirection_id = sdId; base.direction_id = dirId;
+      await upsertItem(base);
+      recalcTaskSums(tkId);
+      closeSubtaskModal();
+      await loadAll();
+      openTaskDetail(tkId);
+    });
+
+    // =====================
+    // ДЕМО-ДАННЫЕ ДЛЯ LOCAL
+    // =====================
+    function seedIfEmpty(){
+      if(store.mode!=='local') return;
+      if((store.items||[]).length>0) return;
+      const dir = { id: uuidv4(), type:'direction', title:'Бизнес', description:'', status:'created' };
+      const sd = { id: uuidv4(), type:'subdirection', title:'Продажи', description:'', parent_id: dir.id, direction_id: dir.id, status:'created' };
+      const pr = { id: uuidv4(), type:'project', title:'CRM-внедрение', description:'', parent_id: sd.id, direction_id: dir.id, subdirection_id: sd.id, status:'created' };
+      const tk = { id: uuidv4(), type:'task', title:'Запуск CRM', description:'', parent_id: pr.id, direction_id: dir.id, subdirection_id: sd.id, project_id: pr.id, status:'in_progress', due_date: toISO(addDays(new Date(), 2)), amount:0, revenue:0 };
+      const st1 = { id: uuidv4(), type:'subtask', title:'Выбор тарифов', parent_id: tk.id, direction_id: dir.id, subdirection_id: sd.id, project_id: pr.id, status:'done', amount: 15000, revenue: 3000 };
+      const st2 = { id: uuidv4(), type:'subtask', title:'Настройка воронок', parent_id: tk.id, direction_id: dir.id, subdirection_id: sd.id, project_id: pr.id, status:'in_progress', amount: 25000, revenue: 7000 };
+      const arr = [dir, sd, pr, tk, st1, st2];
+      localStorage.setItem('work_items_local', JSON.stringify(arr));
+    }
+
+    // =====================
+    // ЗАПУСК
+    // =====================
+    (async function(){
+      // Подставим сохранённые ключи в форму
+      document.getElementById('sbUrl').value = localStorage.getItem('sb_url')||'';
+      document.getElementById('sbKey').value = localStorage.getItem('sb_key')||'';
+      initViewSwitch();
+      updateCreateVisibility();
+      await initSupabase();
+      seedIfEmpty();
+      await loadAll();
+    })();
+  </script>
+</body>
+</html>
