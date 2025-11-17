@@ -362,11 +362,12 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
 
   <script>
     const SUPABASE_PRESET = {
-      url: 'https://guoacfwfjunuqpdvjfwp.supabase.co',
-      key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2FjZndmanVudXFwZHZqZndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEwODYsImV4cCI6MjA3ODE3NzA4Nn0.WuUs9pXqncVnRm33K-Y3DQcpQByk4xVoxVqPPneqRxI',
-      clientUid: '81933159-e979-4a08-9a5e-80691a702a68'
-    };
-    const PIN_LENGTH = 8;
+  pin: '12345678', // ← ТВОЙ 8-значный PIN
+  url: 'https://guoacfwfjunuqpdvjfwp.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2FjZndmanVudXFwZHZqZndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEwODYsImV4cCI6MjA3ODE3NzA4Nn0.WuUs9pXqncVnRm33K-Y3DQcpQByk4xVoxVqPPneqRxI',
+  clientUid: '81933159-e979-4a08-9a5e-80691a702a68'
+};
+const PIN_LENGTH = 8;
     // =====================
     // УТИЛИТЫ
     // =====================
@@ -962,12 +963,28 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
     // ОБРАБОТЧИКИ UI
     // =====================
     document.getElementById('saveSupabase').addEventListener('click', async ()=>{
-      const pin = getPinValue();
-      if(pin.length !== PIN_LENGTH){ alert('Введите 8-значный PIN'); return; }
-      localStorage.setItem('sb_pin', pin);
-      applySupabasePreset();
-      await initSupabase();
-    });
+  const pin = getPinValue();
+
+  // 1) Проверяем длину
+  if (pin.length !== PIN_LENGTH) {
+    alert('Введите 8-значный PIN');
+    return;
+  }
+
+  // 2) Сравниваем с “правильным” PIN
+  if (pin !== SUPABASE_PRESET.pin) {
+    alert('Неверный PIN');
+    // по желанию можно очистить поле:
+    // resetPinUI();
+    return;
+  }
+
+  // 3) Если всё ок – сохраняем и подключаемся
+  localStorage.setItem('sb_pin', pin);
+  applySupabasePreset();
+  await initSupabase();
+});
+
     document.getElementById('disconnectSupabase').addEventListener('click', async ()=>{
       localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key');
       resetPinUI();
