@@ -76,10 +76,21 @@
     .form-small { width: 145px; height: auto; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 8px; outline: none; }
     .form-select { width: 320px; height: auto; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); border-radius: 6px; padding: 8px; outline: none; }
 
+    /* PIN */
+    .pin-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .pin-grid { position: relative; display: block; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background-color: var(--panel-bg); box-shadow: 0px 8px 24px rgba(0,0,0,0.25); cursor: text; }
+    .pin-grid:focus-within { border-color: var(--akcent-color); box-shadow: 0px 0px 0px 3px rgba(38,95,59,0.18); }
+    .pin-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; background: transparent; color: transparent; letter-spacing: 16px; caret-color: var(--akcent-color); }
+    .pin-cells { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; pointer-events: none; }
+    .pin-cell { display: flex; align-items: center; justify-content: center; height: 54px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--card-bg); font-size: 22px; font-weight: 700; color: var(--text-color); transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+    .pin-cell-filled { border-color: var(--akcent-color); box-shadow: 0px 0px 0px 1px rgba(38,95,59,0.55); }
+    .pin-cell-active { border-color: var(--akcent-hover); box-shadow: 0px 0px 0px 2px rgba(90,133,106,0.35); transform: translateY(-1px); }
+
     .form-actions { display: flex; gap: 8px; }
     .btn-small { min-width: 162.5px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background-color: var(--akcent-color); color: #000000; font-weight: 700; cursor: pointer; }
     .btn-small:hover { background-color: var(--akcent-hover); }
     .btn-ghost { min-width: 162.5px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background-color: var(--card-bg); color: var(--text-color); font-weight: 700; cursor: pointer; }
+    .btn-small:disabled, .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-ghost:hover { border-color: var(--akcent-color); color: var(--akcent-color); }
 
     /* Дерево */
@@ -193,11 +204,25 @@
       <div class="panel">
         <div class="panel-header">connect Supabase</div>
         <div class="panel-body">
-          <div class="form-row"><label class="form-label">SUPABASE_URL</label><input class="form-input" id="sbUrl" placeholder="https://YOUR-PROJECT.supabase.co" /></div>
-          <div class="form-row"><label class="form-label">SUPABASE_ANON_KEY</label><input class="form-input" id="sbKey" placeholder="public-anon-key" /></div>
-          <div class="form-row"><label class="form-label">CLIENT_UID (необязательно)</label><input class="form-input" id="sbClientUid" placeholder="Оставьте пустым для текущего значения" /></div>
+          <div class="pin-row">
+            <label class="form-label">PIN-код для Supabase</label>
+            <div class="pin-grid" id="pinGrid">
+              <input id="pinInput" class="pin-input" type="password" inputmode="numeric" pattern="\d{8}" maxlength="8" autocomplete="one-time-code" aria-label="Введите 8-значный PIN" />
+              <div class="pin-cells" aria-hidden="true">
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+                <div class="pin-cell"></div>
+              </div>
+            </div>
+            <div class="mini">PIN заменяет ручной ввод URL, ключа и client_uid. Данные хранятся локально после подтверждения.</div>
+          </div>
           <div class="form-actions">
-            <button class="btn-small" id="saveSupabase">save</button>
+            <button class="btn-small" id="saveSupabase" disabled>connect</button>
             <button class="btn-ghost" id="disconnectSupabase">disable</button>
           </div>
           <div class="mini" style="margin-top:8px;">Keys are stored locally and sent only to your project.
@@ -336,6 +361,12 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
   </div>
 
   <script>
+    const SUPABASE_PRESET = {
+      url: 'https://guoacfwfjunuqpdvjfwp.supabase.co',
+      key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2FjZndmanVudXFwZHZqZndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEwODYsImV4cCI6MjA3ODE3NzA4Nn0.WuUs9pXqncVnRm33K-Y3DQcpQByk4xVoxVqPPneqRxI',
+      clientUid: '81933159-e979-4a08-9a5e-80691a702a68'
+    };
+    const PIN_LENGTH = 8;
     // =====================
     // УТИЛИТЫ
     // =====================
@@ -393,8 +424,6 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       if(!clean) return;
       store.clientUid = clean;
       localStorage.setItem('client_uid', clean);
-      const input = document.getElementById('sbClientUid');
-      if(input) input.value = clean;
     }
 
     // Уникальный client_uid (для RLS) — сохраняем локально
@@ -403,6 +432,41 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       if(!uid){ uid = uuidv4(); }
       setClientUid(uid);
     })();
+
+    // =====================
+    // PIN
+    // =====================
+    function sanitizePin(raw=''){
+      return (raw||'').replace(/\D/g,'').slice(0, PIN_LENGTH);
+    }
+
+    function renderPinCells(value){
+      const clean = sanitizePin(value);
+      const cells = Array.from(document.querySelectorAll('.pin-cell'));
+      const focusIndex = Math.min(clean.length, PIN_LENGTH - 1);
+      cells.forEach((cell, idx)=>{
+        cell.textContent = clean[idx] || '';
+        cell.classList.toggle('pin-cell-filled', Boolean(clean[idx]));
+        const isActive = document.activeElement === document.getElementById('pinInput') && idx === focusIndex;
+        cell.classList.toggle('pin-cell-active', isActive);
+      });
+      const btn = document.getElementById('saveSupabase');
+      if(btn) btn.disabled = clean.length !== PIN_LENGTH;
+      return clean;
+    }
+
+    function setPinValue(value){
+      const input = document.getElementById('pinInput');
+      if(!input) return '';
+      input.value = sanitizePin(value);
+      return renderPinCells(input.value);
+    }
+
+    function getPinValue(){
+      const input = document.getElementById('pinInput');
+      if(!input) return '';
+      return sanitizePin(input.value);
+    }
 
     // =====================
     // SUPABASE ИЛИ LOCAL
@@ -437,6 +501,20 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
         setStatus(false);
         await loadAll();
       }
+    }
+
+    function applySupabasePreset(){
+      localStorage.setItem('sb_url', SUPABASE_PRESET.url);
+      localStorage.setItem('sb_key', SUPABASE_PRESET.key);
+      if(SUPABASE_PRESET.clientUid){
+        setClientUid(SUPABASE_PRESET.clientUid);
+      }
+    }
+
+    function resetPinUI(){
+      localStorage.removeItem('sb_pin');
+      setPinValue('');
+      renderPinCells('');
     }
 
     // =====================
@@ -842,6 +920,25 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       document.getElementById('createAssignee').value='';
     }
 
+    function initPinInput(){
+      const input = document.getElementById('pinInput');
+      const grid = document.getElementById('pinGrid');
+      if(!input || !grid) return;
+      const savedPin = localStorage.getItem('sb_pin') || '';
+      setPinValue(savedPin);
+      const sync = ()=>{ input.value = sanitizePin(input.value); renderPinCells(input.value); };
+      input.addEventListener('input', sync);
+      input.addEventListener('focus', ()=>{ renderPinCells(input.value); });
+      input.addEventListener('blur', ()=>{ renderPinCells(input.value); });
+      input.addEventListener('paste', (event)=>{
+        event.preventDefault();
+        const text = (event.clipboardData || window.clipboardData).getData('text');
+        input.value = sanitizePin(text);
+        renderPinCells(input.value);
+      });
+      grid.addEventListener('click', ()=>{ input.focus(); });
+    }
+
     // =====================
     // ПЕРЕКЛЮЧЕНИЕ ВИДОВ
     // =====================
@@ -865,16 +962,15 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
     // ОБРАБОТЧИКИ UI
     // =====================
     document.getElementById('saveSupabase').addEventListener('click', async ()=>{
-      const url = document.getElementById('sbUrl').value.trim();
-      const key = document.getElementById('sbKey').value.trim();
-      const uidInput = document.getElementById('sbClientUid').value.trim();
-      if(!url || !key){ alert('Нужно указать URL и KEY'); return; }
-      if(uidInput){ setClientUid(uidInput); }
-      localStorage.setItem('sb_url', url); localStorage.setItem('sb_key', key);
+      const pin = getPinValue();
+      if(pin.length !== PIN_LENGTH){ alert('Введите 8-значный PIN'); return; }
+      localStorage.setItem('sb_pin', pin);
+      applySupabasePreset();
       await initSupabase();
     });
     document.getElementById('disconnectSupabase').addEventListener('click', async ()=>{
       localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key');
+      resetPinUI();
       store.mode = 'local'; setStatus(false);
       await loadAll();
     });
@@ -935,9 +1031,11 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
     // =====================
     (async function(){
       // Подставим сохранённые ключи в форму
-      document.getElementById('sbUrl').value = localStorage.getItem('sb_url')||'';
-      document.getElementById('sbKey').value = localStorage.getItem('sb_key')||'';
-      document.getElementById('sbClientUid').value = store.clientUid || '';
+      initPinInput();
+      const savedPin = localStorage.getItem('sb_pin') || '';
+      if(savedPin && (!localStorage.getItem('sb_url') || !localStorage.getItem('sb_key'))){
+        applySupabasePreset();
+      }
       initViewSwitch();
       updateCreateVisibility();
       await initSupabase();
