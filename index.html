@@ -195,6 +195,7 @@
         <div class="panel-body">
           <div class="form-row"><label class="form-label">SUPABASE_URL</label><input class="form-input" id="sbUrl" placeholder="https://YOUR-PROJECT.supabase.co" /></div>
           <div class="form-row"><label class="form-label">SUPABASE_ANON_KEY</label><input class="form-input" id="sbKey" placeholder="public-anon-key" /></div>
+          <div class="form-row"><label class="form-label">CLIENT_UID (необязательно)</label><input class="form-input" id="sbClientUid" placeholder="Оставьте пустым для текущего значения" /></div>
           <div class="form-actions">
             <button class="btn-small" id="saveSupabase">save</button>
             <button class="btn-ghost" id="disconnectSupabase">disable</button>
@@ -386,11 +387,21 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       detailTaskId: null
     };
 
+    function setClientUid(uid){
+      if(!uid) return;
+      const clean = uid.trim();
+      if(!clean) return;
+      store.clientUid = clean;
+      localStorage.setItem('client_uid', clean);
+      const input = document.getElementById('sbClientUid');
+      if(input) input.value = clean;
+    }
+
     // Уникальный client_uid (для RLS) — сохраняем локально
     (function ensureClientUid(){
       let uid = localStorage.getItem('client_uid');
-      if(!uid){ uid = uuidv4(); localStorage.setItem('client_uid', uid); }
-      store.clientUid = uid;
+      if(!uid){ uid = uuidv4(); }
+      setClientUid(uid);
     })();
 
     // =====================
@@ -856,7 +867,9 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
     document.getElementById('saveSupabase').addEventListener('click', async ()=>{
       const url = document.getElementById('sbUrl').value.trim();
       const key = document.getElementById('sbKey').value.trim();
+      const uidInput = document.getElementById('sbClientUid').value.trim();
       if(!url || !key){ alert('Нужно указать URL и KEY'); return; }
+      if(uidInput){ setClientUid(uidInput); }
       localStorage.setItem('sb_url', url); localStorage.setItem('sb_key', key);
       await initSupabase();
     });
@@ -924,6 +937,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
       // Подставим сохранённые ключи в форму
       document.getElementById('sbUrl').value = localStorage.getItem('sb_url')||'';
       document.getElementById('sbKey').value = localStorage.getItem('sb_key')||'';
+      document.getElementById('sbClientUid').value = store.clientUid || '';
       initViewSwitch();
       updateCreateVisibility();
       await initSupabase();
