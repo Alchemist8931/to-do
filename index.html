@@ -111,8 +111,8 @@
     .view-active { display: block; }
 
     /* Календарь (5 недель: -2, -1, 0, +1, +2) */
-    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 280px; gap: 8px; }
-    .calendar-cell { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; overflow: hidden; transition: border-color 180ms ease; }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 280px; gap: 8px; position: relative; }
+    .calendar-cell { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; overflow: hidden; transition: border-color 180ms ease; position: relative; z-index: 1; }
     .calendar-cell:hover { border-color: var(--akcent-hover); }
     .calendar-cell-today { border-color: var(--akcent-color); }
     .calendar-cell-today:hover { border-color: var(--akcent-hover); }
@@ -122,6 +122,9 @@
     .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 6px; cursor: pointer; }
     .calendar-task-title { font-size: 12px; color: var(--text-color); font-weight: 700; }
     .calendar-task-meta { font-size: 11px; color: var(--muted); }
+    .calendar-span-task { border: 1px solid var(--akcent-color); background: rgba(38,95,59,0.2); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: 8px; padding: 8px; margin: 2px; display: flex; gap: 8px; align-items: center; cursor: pointer; z-index: 2; box-shadow: 0px 4px 18px rgba(0,0,0,0.28); }
+    .calendar-span-task-title { font-size: 13px; font-weight: 700; color: var(--text-color); }
+    .calendar-span-task-dates { font-size: 12px; color: var(--muted); }
 
     /* Канбан */
     .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; min-height: 560px; }
@@ -259,10 +262,6 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
             <div class="form-row"><label class="form-label">start</label><input class="form-small" id="createStart" type="date" /></div>
             <div class="form-row"><label class="form-label">completion</label><input class="form-small" id="createDue" type="date" /></div>
           </div>
-          <div class="form-row-inline">
-            <div class="form-row"><label class="form-label">sum</label><input class="form-small" id="createAmount" type="number" step="0.01" value="0" /></div>
-            <div class="form-row"><label class="form-label">margin</label><input class="form-small" id="createRevenue" type="number" step="0.01" value="0" /></div>
-          </div>
           <div class="form-row" id="assigneeRow"><label class="form-label">responsible</label><input class="form-input" id="createAssignee" placeholder="ФИО или @" /></div>
           <div class="form-row" id="statusRow"><label class="form-label">status (for tasks/subtasks)</label>
             <select class="form-select" id="createStatus">
@@ -367,13 +366,14 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
 
   <script>
     const SUPABASE_PRESET = {
-  pin: '12345678', // ← ТВОЙ 8-значный PIN
+  pin: '89312549', // ← ТВОЙ 8-значный PIN
   url: 'https://guoacfwfjunuqpdvjfwp.supabase.co',
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2FjZndmanVudXFwZHZqZndwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2MDEwODYsImV4cCI6MjA3ODE3NzA4Nn0.WuUs9pXqncVnRm33K-Y3DQcpQByk4xVoxVqPPneqRxI',
   clientUid: '81933159-e979-4a08-9a5e-80691a702a68'
 };
 const PIN_LENGTH = 8;
     const PIN_MASK_CHAR = '※';
+    const DAY_MS = 24 * 60 * 60 * 1000;
     // =====================
     // УТИЛИТЫ
     // =====================
@@ -384,6 +384,26 @@ const PIN_LENGTH = 8;
     function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
     function weekStart(d) { const date = new Date(d); const day = (date.getDay()+6)%7; // Monday=0
       date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
+
+    function parseISODate(value){
+      const parts = extractYmd(value);
+      if(!parts) return null;
+      const dt = new Date(parts.y, parts.m-1, parts.d);
+      dt.setHours(0,0,0,0);
+      return dt;
+    }
+
+    function diffInDaysSafe(start, end){
+      if(!start || !end) return null;
+      return Math.floor((end - start) / DAY_MS);
+    }
+
+    function clampDate(date, min, max){
+      if(!date) return null;
+      if(date < min) return new Date(min);
+      if(date > max) return new Date(max);
+      return date;
+    }
 
     function extractYmd(value){
       if(!value) return null;
@@ -733,6 +753,54 @@ const PIN_LENGTH = 8;
       return span;
     }
 
+    function isMultiDayTask(task){
+      const start = parseISODate(task?.start_date);
+      const end = parseISODate(task?.due_date);
+      if(!start || !end) return false;
+      return diffInDaysSafe(start, end) >= 1;
+    }
+
+    function isTaskOnDay(task, dayISO){
+      if(isMultiDayTask(task)) return false;
+      const singleDate = task.due_date || task.start_date;
+      return singleDate === dayISO;
+    }
+
+    function renderMultiDaySpans(grid, gridStartDate, daysTotal){
+      const gridEndDate = addDays(gridStartDate, daysTotal - 1);
+      const multi = tasksOnly().filter(isMultiDayTask);
+      multi.forEach(task=>{
+        const rawStart = parseISODate(task.start_date);
+        const rawEnd = parseISODate(task.due_date);
+        if(!rawStart || !rawEnd) return;
+        const startDate = clampDate(rawStart, gridStartDate, gridEndDate);
+        const endDate = clampDate(rawEnd, gridStartDate, gridEndDate);
+        if(!startDate || !endDate || endDate < gridStartDate || startDate > gridEndDate) return;
+
+        let startOffset = Math.floor((startDate - gridStartDate) / DAY_MS);
+        const endOffset = Math.floor((endDate - gridStartDate) / DAY_MS);
+
+        while(startOffset <= endOffset){
+          const row = Math.floor(startOffset / 7) + 1;
+          const col = (startOffset % 7) + 1;
+          const daysLeftInWeek = 7 - (col - 1);
+          const spanLength = Math.min(daysLeftInWeek, endOffset - startOffset + 1);
+
+          const bar = document.createElement('div'); bar.className='calendar-span-task';
+          bar.style.gridRow = row;
+          bar.style.gridColumn = `${col} / span ${spanLength}`;
+
+          const title = document.createElement('div'); title.className='calendar-span-task-title'; title.textContent = task.title;
+          const dates = document.createElement('div'); dates.className='calendar-span-task-dates'; dates.textContent = `${formatDateLocal(task.start_date,'short')} — ${formatDateLocal(task.due_date,'short')}`;
+          bar.appendChild(title); bar.appendChild(dates);
+          bar.onclick = ()=> openTaskDetail(task.id);
+
+          grid.appendChild(bar);
+          startOffset += spanLength;
+        }
+      });
+    }
+
     // Календарь: 5 недель вокруг текущей
     function renderCalendar(){
       const grid = document.getElementById('calendarGrid');
@@ -753,7 +821,7 @@ const PIN_LENGTH = 8;
 
         const dayISO = toISO(d);
           if(dayISO === currentDayISO) cell.classList.add('calendar-cell-today');
-        const dayTasks = tasksOnly().filter(t=> t.due_date === dayISO);
+        const dayTasks = tasksOnly().filter(t=> isTaskOnDay(t, dayISO));
         dayTasks.forEach(t=>{
           const card = document.createElement('div'); card.className='calendar-task';
           const ti = document.createElement('div'); ti.className='calendar-task-title'; ti.textContent = t.title;
@@ -766,6 +834,7 @@ const PIN_LENGTH = 8;
         });
         grid.appendChild(cell);
       }
+      renderMultiDaySpans(grid, start, daysTotal);
     }
 
     // Канбан
@@ -896,10 +965,6 @@ const PIN_LENGTH = 8;
       tkR.style.display = (t==='subtask') ? 'block':'none';
       asR.style.display = (t==='subtask') ? 'block':'none';
       stR.style.display = (t==='task' || t==='subtask') ? 'block':'none';
-
-      const amountEl = document.getElementById('createAmount');
-      const revenueEl = document.getElementById('createRevenue');
-      if(t==='task'){ amountEl.disabled = true; revenueEl.disabled = true; } else { amountEl.disabled = false; revenueEl.disabled = false; }
     }
 
     async function handleCreate(){
@@ -909,12 +974,10 @@ const PIN_LENGTH = 8;
       const description = document.getElementById('createDescription').value.trim();
       const start = document.getElementById('createStart').value || null;
       const due = document.getElementById('createDue').value || null;
-      const amount = Number(document.getElementById('createAmount').value||0);
-      const revenue = Number(document.getElementById('createRevenue').value||0);
       const assignee = document.getElementById('createAssignee').value || null;
       const status = document.getElementById('createStatus').value;
 
-      const base = { type, title, description, start_date: start, due_date: due, amount: amount, revenue: revenue, assignee: assignee, status: status };
+      const base = { type, title, description, start_date: start, due_date: due, amount: 0, revenue: 0, assignee: assignee, status: status };
 
       if(type==='direction'){
         base.parent_id = null; base.direction_id = null; base.subdirection_id = null; base.project_id = null;
@@ -949,8 +1012,6 @@ const PIN_LENGTH = 8;
       document.getElementById('createDescription').value='';
       document.getElementById('createStart').value='';
       document.getElementById('createDue').value='';
-      document.getElementById('createAmount').value='0';
-      document.getElementById('createRevenue').value='0';
       document.getElementById('createAssignee').value='';
     }
 
