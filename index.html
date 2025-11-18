@@ -178,6 +178,12 @@
     .status-ok { background-color: var(--success); }
     .status-bad { background-color: var(--danger); }
 
+    /* Метки статусов задач */
+    .status-label { font-weight: 700; }
+    .status-created { color: #F1DFCF; }
+    .status-in_progress { color: #f1f1f1; }
+    .status-done { color: #265f3b; }
+
     /* Небольшие карточки */
     .mini { font-size: 12px; color: var(--muted); }
 
@@ -269,7 +275,6 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
             <button class="btn-small" id="createSave">add</button>
             <button class="btn-ghost" id="createReset">reset</button>
           </div>
-          <div class="mini" style="margin-top:8px;">For tasks, the amount and earnings are recalculated automatically for subtasks.</div>
         </div>
       </div>
 
@@ -686,14 +691,19 @@ const PIN_LENGTH = 8;
             tasks.forEach(task=>{
               const card = document.createElement('div'); card.className='kanban-card';
               const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = task.title;
-              const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+formatDateLocal(task.due_date)+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+              const mt = document.createElement('div'); mt.className='kanban-card-meta';
+              mt.append('Дедлайн: '+formatDateLocal(task.due_date)+' | Статус: ');
+              mt.appendChild(createStatusBadge(task.status));
               card.appendChild(ti); card.appendChild(mt);
               card.onclick = ()=> openTaskDetail(task.id);
 
               const stWrap = document.createElement('div'); stWrap.className='tree-node-children';
               const subs2 = subtasksOf(task.id);
               subs2.forEach(st=>{
-                const stLine = document.createElement('div'); stLine.className='mini'; stLine.textContent = '• '+st.title+' ('+humanStatus(st.status)+')';
+                const stLine = document.createElement('div'); stLine.className='mini';
+                stLine.append('• '+st.title+' (');
+                stLine.appendChild(createStatusBadge(st.status));
+                stLine.append(')');
                 stWrap.appendChild(stLine);
               });
 
@@ -715,6 +725,13 @@ const PIN_LENGTH = 8;
     }
 
     function humanStatus(s){ if(s==='created') return 'создано'; if(s==='in_progress') return 'в работе'; if(s==='done') return 'завершено'; return s; }
+
+    function createStatusBadge(status){
+      const span = document.createElement('span');
+      span.className = 'status-label status-'+status;
+      span.textContent = humanStatus(status);
+      return span;
+    }
 
     // Календарь: 5 недель вокруг текущей
     function renderCalendar(){
@@ -740,7 +757,9 @@ const PIN_LENGTH = 8;
         dayTasks.forEach(t=>{
           const card = document.createElement('div'); card.className='calendar-task';
           const ti = document.createElement('div'); ti.className='calendar-task-title'; ti.textContent = t.title;
-          const mt = document.createElement('div'); mt.className='calendar-task-meta'; mt.textContent = 'Сумма: '+fmt(t.amount)+' | Заработок: '+fmt(t.revenue)+' | '+humanStatus(t.status);
+          const mt = document.createElement('div'); mt.className='calendar-task-meta';
+          mt.append('Статус: ');
+          mt.appendChild(createStatusBadge(t.status));
           card.appendChild(ti); card.appendChild(mt);
           card.onclick = ()=> openTaskDetail(t.id);
           cell.appendChild(card);
@@ -760,7 +779,9 @@ const PIN_LENGTH = 8;
       tasks.forEach(t=>{
         const card = document.createElement('div'); card.className='kanban-card'; card.setAttribute('draggable','true'); card.dataset.id = t.id;
         const ti = document.createElement('div'); ti.className='kanban-card-title'; ti.textContent = t.title;
-        const mt = document.createElement('div'); mt.className='kanban-card-meta'; mt.textContent = 'Дедлайн: '+formatDateLocal(t.due_date)+' | '+fmt(t.amount)+' / '+fmt(t.revenue);
+        const mt = document.createElement('div'); mt.className='kanban-card-meta';
+        mt.append('Дедлайн: '+formatDateLocal(t.due_date)+' | Статус: ');
+        mt.appendChild(createStatusBadge(t.status));
         card.appendChild(ti); card.appendChild(mt);
         card.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', t.id); });
         card.onclick = ()=> openTaskDetail(t.id);
@@ -788,7 +809,10 @@ const PIN_LENGTH = 8;
       const task = getById(taskId); if(!task) return;
       store.detailTaskId = taskId;
       document.getElementById('detailTitle').textContent = task.title;
-      document.getElementById('detailMeta').textContent = 'Дедлайн: '+formatDateLocal(task.due_date)+' | Сумма: '+fmt(task.amount)+' | Заработок: '+fmt(task.revenue)+' | Статус: '+humanStatus(task.status);
+      const meta = document.getElementById('detailMeta');
+      meta.innerHTML = '';
+      meta.append('Дедлайн: '+formatDateLocal(task.due_date)+' | Статус: ');
+      meta.appendChild(createStatusBadge(task.status));
       const list = document.getElementById('detailSubtasks'); list.innerHTML='';
       const subs = subtasksOf(taskId);
       subs.forEach(st=> list.appendChild(renderSubtaskLine(st)) );
