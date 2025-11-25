@@ -32,6 +32,7 @@
       --radius: 8px;
       --calendar-head-offset: 34px;
       --calendar-span-height: 46px;
+      --task-gap: 6px;
     }
 
     /* Не объединяем селекторы; каждая сущность отдельно */
@@ -122,11 +123,11 @@
     .calendar-cell-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
     .calendar-cell-day { font-size: 12px; color: var(--muted); }
     .calendar-cell-date { font-size: 12px; color: var(--text-color); font-weight: 700; }
-    .calendar-cell-content { display: flex; flex-direction: column; gap: 6px; margin-top: calc(var(--calendar-span-height) * var(--span-rows, 0)); }
-    .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 6px; cursor: pointer; }
+    .calendar-cell-content { display: flex; flex-direction: column; gap: var(--task-gap); margin-top: calc((var(--calendar-span-height) + var(--task-gap)) * var(--span-rows, 0)); }
+    .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 0px; cursor: pointer; }
     .calendar-task-title { font-size: 12px; color: var(--text-color); font-weight: 700; }
     .calendar-task-meta { font-size: 11px; color: var(--muted); }
-    .calendar-span-task { border: 1px solid var(--akcent-color); background: rgba(38,95,59,0.2); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: 8px; padding: 8px; margin: 2px; display: flex; gap: 8px; align-items: center; cursor: pointer; z-index: 2; box-shadow: 0px 4px 18px rgba(0,0,0,0.28); align-self: start; position: relative; min-height: 36px; pointer-events: auto; }
+    .calendar-span-task { border: 1px solid var(--akcent-color); background: rgba(38,95,59,0.2); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: 8px; padding: 8px; margin: var(--task-gap) 0; display: flex; gap: 8px; align-items: center; cursor: pointer; z-index: 2; box-shadow: 0px 4px 18px rgba(0,0,0,0.28); align-self: start; position: relative; min-height: 36px; pointer-events: auto; }
     .calendar-span-task-title { font-size: 13px; font-weight: 700; color: var(--text-color); }
     .calendar-span-task-dates { font-size: 12px; color: var(--muted); }
 
@@ -378,6 +379,7 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
 const PIN_LENGTH = 8;
     const PIN_MASK_CHAR = '※';
     const DAY_MS = 24 * 60 * 60 * 1000;
+    const TASK_GAP_PX = 6;
     // =====================
     // УТИЛИТЫ
     // =====================
@@ -786,13 +788,15 @@ const PIN_LENGTH = 8;
         let startOffset = Math.floor((startDate - gridStartDate) / DAY_MS);
         const endOffset = Math.floor((endDate - gridStartDate) / DAY_MS);
 
+        const totalSpanLength = endOffset - startOffset + 1;
+
         while(startOffset <= endOffset){
           const row = Math.floor(startOffset / 7) + 1;
           const col = (startOffset % 7) + 1;
           const daysLeftInWeek = 7 - (col - 1);
           const spanLength = Math.min(daysLeftInWeek, endOffset - startOffset + 1);
 
-          spans.push({ task, row, col, spanLength });
+          spans.push({ task, row, col, spanLength, duration: totalSpanLength });
           for(let i=0; i<spanLength; i++){
             const dayIndex = startOffset + i;
             if(dayIndex >= 0 && dayIndex < dayCounts.length){
@@ -803,7 +807,7 @@ const PIN_LENGTH = 8;
           startOffset += spanLength;
         }
       });
-
+     spans.sort((a,b)=> b.duration - a.duration);
       return { spans, dayCounts };
     }
 
@@ -812,6 +816,7 @@ const PIN_LENGTH = 8;
         const bar = document.createElement('div'); bar.className='calendar-span-task';
         bar.style.gridRow = span.row;
         bar.style.gridColumn = `${span.col} / span ${span.spanLength}`;
+        bar.style.zIndex = String(100 + span.duration);
 
         const title = document.createElement('div'); title.className='calendar-span-task-title'; title.textContent = span.task.title;
         const dates = document.createElement('div'); dates.className='calendar-span-task-dates'; dates.textContent = `${formatDateLocal(span.task.start_date,'short')} — ${formatDateLocal(span.task.due_date,'short')}`;
@@ -866,7 +871,7 @@ const PIN_LENGTH = 8;
 
       const firstSpan = spanLayer.querySelector('.calendar-span-task');
       const measuredHeight = firstSpan?.getBoundingClientRect().height;
-      const spanHeightPx = measuredHeight ? Math.ceil(measuredHeight + 6) : 46;
+      const spanHeightPx = Math.ceil(measuredHeight || 40);
       document.documentElement.style.setProperty('--calendar-span-height', `${spanHeightPx}px`);
     }
 
