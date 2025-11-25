@@ -863,6 +863,11 @@ const PIN_LENGTH = 8;
       }
       grid.appendChild(spanLayer);
       renderMultiDaySpans(spanLayer, spans);
+
+      const firstSpan = spanLayer.querySelector('.calendar-span-task');
+      const measuredHeight = firstSpan?.getBoundingClientRect().height;
+      const spanHeightPx = measuredHeight ? Math.ceil(measuredHeight + 6) : 46;
+      document.documentElement.style.setProperty('--calendar-span-height', `${spanHeightPx}px`);
     }
 
     // Канбан
