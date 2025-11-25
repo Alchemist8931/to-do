@@ -142,7 +142,7 @@
     .kanban-card-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
     /* Детали задачи и чекбоксы подзадач (перекрашено) */
-    .task-detail { display: none; position: fixed; left: 0px; top: 0px; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    .task-detail { display: none; position: fixed; left: 0px; top: 0px; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 80; }
     .task-detail-card { width: 720px; max-height: 80vh; overflow: auto; border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 10px; padding: 16px; box-shadow: 0px 12px 40px rgba(0,0,0,0.45); }
     .task-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .task-detail-title { font-size: 18px; font-weight: 700; }
@@ -191,6 +191,12 @@
     .status-created { color: #AFF901; }
     .status-in_progress { color: #f1f1f1; }
     .status-done { color: #265f3b; }
+
+    /* Размытие фона при открытой детализации */
+    body.detail-open .app-root > *:not(.task-detail):not(.modal) {
+      filter: blur(4px);
+      transition: filter 160ms ease;
+    }
 
     /* Небольшие карточки */
     .mini { font-size: 12px; color: var(--muted); }
@@ -947,9 +953,13 @@ const PIN_LENGTH = 8;
       const list = document.getElementById('detailSubtasks'); list.innerHTML='';
       const subs = subtasksOf(taskId);
       subs.forEach(st=> list.appendChild(renderSubtaskLine(st)) );
+      document.body.classList.add('detail-open');
       document.getElementById('taskDetail').style.display = 'flex';
     }
-    function closeTaskDetail(){ document.getElementById('taskDetail').style.display = 'none'; }
+    function closeTaskDetail(){
+      document.body.classList.remove('detail-open');
+      document.getElementById('taskDetail').style.display = 'none';
+    }
 
     function renderSubtaskLine(st){
       const wrap = document.createElement('div'); wrap.className='subtask-line';
