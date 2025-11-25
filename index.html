@@ -30,6 +30,8 @@
       --warning: #ffcc00;
       --shadow: rgba(0,0,0,0.35);
       --radius: 8px;
+      --calendar-head-offset: 34px;
+      --calendar-span-height: 46px;
     }
 
     /* Не объединяем селекторы; каждая сущность отдельно */
@@ -112,7 +114,7 @@
 
     /* Календарь (5 недель: -2, -1, 0, +1, +2) */
     .calendar { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 280px; gap: 8px; position: relative; }
-    .calendar-span-layer { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 280px; gap: 8px; pointer-events: none; z-index: 5; }
+    .calendar-span-layer { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 280px; gap: 8px; pointer-events: none; z-index: 5; box-sizing: border-box; padding-top: var(--calendar-head-offset); }
     .calendar-cell { border: 1px solid var(--border); background-color: var(--card-bg); border-radius: 6px; padding: 8px; overflow: hidden; transition: border-color 180ms ease; position: relative; z-index: 1; }
     .calendar-cell:hover { border-color: var(--akcent-hover); }
     .calendar-cell-today { border-color: var(--akcent-color); }
@@ -120,6 +122,7 @@
     .calendar-cell-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
     .calendar-cell-day { font-size: 12px; color: var(--muted); }
     .calendar-cell-date { font-size: 12px; color: var(--text-color); font-weight: 700; }
+    .calendar-cell-content { display: flex; flex-direction: column; gap: 6px; margin-top: calc(var(--calendar-span-height) * var(--span-rows, 0)); }
     .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 6px; cursor: pointer; }
     .calendar-task-title { font-size: 12px; color: var(--text-color); font-weight: 700; }
     .calendar-task-meta { font-size: 11px; color: var(--muted); }
@@ -767,9 +770,11 @@ const PIN_LENGTH = 8;
       return singleDate === dayISO;
     }
 
-    function renderMultiDaySpans(spanLayer, gridStartDate, daysTotal){
+   function collectMultiDaySpans(gridStartDate, daysTotal){
       const gridEndDate = addDays(gridStartDate, daysTotal - 1);
       const multi = tasksOnly().filter(isMultiDayTask);
+      const spans = [];
+      const dayCounts = Array(daysTotal).fill(0);
       multi.forEach(task=>{
         const rawStart = parseISODate(task.start_date);
         const rawEnd = parseISODate(task.due_date);
@@ -787,18 +792,33 @@ const PIN_LENGTH = 8;
           const daysLeftInWeek = 7 - (col - 1);
           const spanLength = Math.min(daysLeftInWeek, endOffset - startOffset + 1);
 
-          const bar = document.createElement('div'); bar.className='calendar-span-task';
-          bar.style.gridRow = row;
-          bar.style.gridColumn = `${col} / span ${spanLength}`;
+          spans.push({ task, row, col, spanLength });
+          for(let i=0; i<spanLength; i++){
+            const dayIndex = startOffset + i;
+            if(dayIndex >= 0 && dayIndex < dayCounts.length){
+              dayCounts[dayIndex] += 1;
+            }
+          }
 
-          const title = document.createElement('div'); title.className='calendar-span-task-title'; title.textContent = task.title;
-          const dates = document.createElement('div'); dates.className='calendar-span-task-dates'; dates.textContent = `${formatDateLocal(task.start_date,'short')} — ${formatDateLocal(task.due_date,'short')}`;
-          bar.appendChild(title); bar.appendChild(dates);
-          bar.onclick = ()=> openTaskDetail(task.id);
-
-          spanLayer.appendChild(bar);
           startOffset += spanLength;
         }
+      });
+
+      return { spans, dayCounts };
+    }
+
+    function renderMultiDaySpans(spanLayer, spans){
+      spans.forEach(span=>{
+        const bar = document.createElement('div'); bar.className='calendar-span-task';
+        bar.style.gridRow = span.row;
+        bar.style.gridColumn = `${span.col} / span ${span.spanLength}`;
+
+        const title = document.createElement('div'); title.className='calendar-span-task-title'; title.textContent = span.task.title;
+        const dates = document.createElement('div'); dates.className='calendar-span-task-dates'; dates.textContent = `${formatDateLocal(span.task.start_date,'short')} — ${formatDateLocal(span.task.due_date,'short')}`;
+        bar.appendChild(title); bar.appendChild(dates);
+        bar.onclick = ()=> openTaskDetail(span.task.id);
+
+        spanLayer.appendChild(bar);
       });
     }
 
@@ -806,23 +826,27 @@ const PIN_LENGTH = 8;
     function renderCalendar(){
       const grid = document.getElementById('calendarGrid');
         grid.innerHTML='';
-        const now = new Date();
-        const ws = weekStart(now);
-        const start = addDays(ws, -14); // -2 недели
-        const currentDayISO = todayISO();
-        const daysTotal = 35; // 5 недель
-        const spanLayer = document.createElement('div'); spanLayer.className='calendar-span-layer';
-        for(let i=0;i<daysTotal;i++){
-          const d = addDays(start, i);
-          const cell = document.createElement('div'); cell.className='calendar-cell';
+      const now = new Date();
+      const ws = weekStart(now);
+      const start = addDays(ws, -14); // -2 недели
+      const currentDayISO = todayISO();
+      const daysTotal = 35; // 5 недель
+      const spanLayer = document.createElement('div'); spanLayer.className='calendar-span-layer';
+      const { spans, dayCounts } = collectMultiDaySpans(start, daysTotal);
+      for(let i=0;i<daysTotal;i++){
+        const d = addDays(start, i);
+        const cell = document.createElement('div'); cell.className='calendar-cell';
         const head = document.createElement('div'); head.className='calendar-cell-header';
         const day = document.createElement('div'); day.className='calendar-cell-day'; day.textContent = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][ (d.getDay()+6)%7 ];
         const dat = document.createElement('div'); dat.className='calendar-cell-date'; dat.textContent = formatDateLocal(toISO(d), 'short');
         head.appendChild(day); head.appendChild(dat);
         cell.appendChild(head);
 
+         const content = document.createElement('div'); content.className='calendar-cell-content';
+        content.style.setProperty('--span-rows', dayCounts[i] || 0);
+
         const dayISO = toISO(d);
-          if(dayISO === currentDayISO) cell.classList.add('calendar-cell-today');
+         if(dayISO === currentDayISO) cell.classList.add('calendar-cell-today');
         const dayTasks = tasksOnly().filter(t=> isTaskOnDay(t, dayISO));
         dayTasks.forEach(t=>{
           const card = document.createElement('div'); card.className='calendar-task';
@@ -832,12 +856,13 @@ const PIN_LENGTH = 8;
           mt.appendChild(createStatusBadge(t.status));
           card.appendChild(ti); card.appendChild(mt);
           card.onclick = ()=> openTaskDetail(t.id);
-          cell.appendChild(card);
+          content.appendChild(card);
         });
+        cell.appendChild(content);
         grid.appendChild(cell);
       }
       grid.appendChild(spanLayer);
-      renderMultiDaySpans(spanLayer, start, daysTotal);
+      renderMultiDaySpans(spanLayer, spans);
     }
 
     // Канбан
