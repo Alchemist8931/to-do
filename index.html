@@ -127,7 +127,7 @@
     .calendar-task { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 6px; padding: 6px; margin-bottom: 0px; cursor: pointer; }
     .calendar-task-title { font-size: 12px; color: var(--text-color); font-weight: 700; }
     .calendar-task-meta { font-size: 11px; color: var(--muted); }
-    .calendar-span-task { border: 1px solid var(--akcent-color); background: rgba(38,95,59,0.2); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: 8px; padding: 8px; margin: var(--task-gap) 0; display: flex; gap: 8px; align-items: center; cursor: pointer; z-index: 2; box-shadow: 0px 4px 18px rgba(0,0,0,0.28); align-self: start; position: relative; min-height: 36px; pointer-events: auto; }
+    .calendar-span-task { border: 1px solid var(--akcent-color); background: rgba(38,95,59,0.2); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); border-radius: 8px; padding: 8px; margin: var(--task-gap) 0; display: flex; gap: 8px; align-items: center; cursor: pointer; z-index: 2; box-shadow: 0px 4px 18px rgba(0,0,0,0.28); align-self: start; position: relative; min-height: 36px; pointer-events: auto; transform: translateY(calc(var(--span-lane, 0) * (var(--calendar-span-height) + var(--task-gap)))); }
     .calendar-span-task-title { font-size: 13px; font-weight: 700; color: var(--text-color); }
     .calendar-span-task-dates { font-size: 12px; color: var(--muted); }
 
@@ -811,11 +811,34 @@ const PIN_LENGTH = 8;
       return { spans, dayCounts };
     }
 
+    function assignSpanLanes(spans){
+      const lanesByRow = new Map();
+      spans.forEach(span=>{
+        const rowKey = span.row;
+        const startCol = span.col;
+        const endCol = span.col + span.spanLength - 1;
+        const rowLanes = lanesByRow.get(rowKey) || [];
+
+        let laneIndex = 0;
+        while(true){
+          const laneEnd = rowLanes[laneIndex];
+          if(laneEnd === undefined || laneEnd < startCol){
+            rowLanes[laneIndex] = endCol;
+            span.lane = laneIndex;
+            lanesByRow.set(rowKey, rowLanes);
+            break;
+          }
+          laneIndex += 1;
+        }
+      });
+    }
+
     function renderMultiDaySpans(spanLayer, spans){
       spans.forEach(span=>{
         const bar = document.createElement('div'); bar.className='calendar-span-task';
         bar.style.gridRow = span.row;
         bar.style.gridColumn = `${span.col} / span ${span.spanLength}`;
+        bar.style.setProperty('--span-lane', span.lane || 0);
         bar.style.zIndex = String(100 + span.duration);
 
         const title = document.createElement('div'); title.className='calendar-span-task-title'; title.textContent = span.task.title;
@@ -838,6 +861,7 @@ const PIN_LENGTH = 8;
       const daysTotal = 35; // 5 недель
       const spanLayer = document.createElement('div'); spanLayer.className='calendar-span-layer';
       const { spans, dayCounts } = collectMultiDaySpans(start, daysTotal);
+      assignSpanLanes(spans);
       for(let i=0;i<daysTotal;i++){
         const d = addDays(start, i);
         const cell = document.createElement('div'); cell.className='calendar-cell';
