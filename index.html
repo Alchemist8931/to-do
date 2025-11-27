@@ -203,22 +203,42 @@
 
     /* Служебное скрытие */
     .hidden { display: none; }
+
+     /* Переключатель режимов */
+    .mode-toggle { display: inline-flex; background-color: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px; gap: 4px; }
+    .mode-button { border: none; background: transparent; color: var(--muted); padding: 6px 10px; border-radius: 6px; font-weight: 700; cursor: pointer; transition: all 120ms ease; }
+    .mode-button:hover { color: var(--text); background-color: rgba(255,255,255,0.05); }
+    .mode-button.active { background-color: var(--primary); color: #0f172a; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+
+    /* Мессенджер */
+    .messenger-layout { margin-top: 16px; display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .messenger-card { border: 1px solid var(--border); background-color: var(--panel-bg); border-radius: 12px; padding: 16px; box-shadow: 0px 8px 24px rgba(0,0,0,0.2); }
+    .messenger-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
+    .messenger-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    .messenger-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .messenger-note { background-color: rgba(86,115,255,0.08); border: 1px dashed var(--primary); color: var(--muted); border-radius: 8px; padding: 10px; font-size: 12px; }
+    
   </style>
 </head>
 <body>
   <div class="app-root">
-    <div class="app-header">
-      <h1 class="app-title" style="text-transform: uppercase;">personal tasks meneger</h1>
-      <div class="header-actions">
-        <div class="radio-inputs" id="view-switch">
-          <label class="radio"><input class="radio-input" type="radio" name="view" value="calendar" checked /><span class="radio-name">calendar</span></label>
-          <label class="radio"><input class="radio-input" type="radio" name="view" value="kanban" /><span class="radio-name">kanban</span></label>
-          <label class="radio"><input class="radio-input" type="radio" name="view" value="tree" /><span class="radio-name">tree</span></label>
-        </div>
+      <div class="app-header">
+        <h1 class="app-title" style="text-transform: uppercase;">personal tasks meneger</h1>
+        <div class="header-actions">
+          <div class="mode-toggle" id="modeToggle">
+            <button class="mode-button active" data-mode="tasks">Задачник</button>
+            <button class="mode-button" data-mode="messenger">Единый мессенджер</button>
+          </div>
+          <div class="radio-inputs" id="view-switch">
+            <label class="radio"><input class="radio-input" type="radio" name="view" value="calendar" checked /><span class="radio-name">calendar</span></label>
+            <label class="radio"><input class="radio-input" type="radio" name="view" value="kanban" /><span class="radio-name">kanban</span></label>
+            <label class="radio"><input class="radio-input" type="radio" name="view" value="tree" /><span class="radio-name">tree</span></label>
+          </div>
         <div class="status-bar" id="statusBar"><div class="status-dot" id="statusDot"></div><span id="statusText">offline (localStorage)</span></div>
       </div>
     </div>
 
+    <div id="taskWorkspace">
     <!-- Левая колонка: управление и дерево -->
     <div class="sidebar">
       <div class="panel">
@@ -297,31 +317,55 @@ RLS policies use the header <b>x-client-uid</b> (see comment at the beginning of
     </div>
 
     <!-- Правая колонка: представления -->
-    <div class="content">
-      <div class="views">
-        <div class="view view-active" id="view-calendar">
-          <div class="mini" style="margin-bottom:8px;">Calendar: two previous weeks, current week, two next weeks. Only tasks are displayed (no subtasks)..</div>
-          <div class="calendar" id="calendarGrid"></div>
-        </div>
-        <div class="view" id="view-kanban">
-          <div class="kanban" id="kanbanRoot">
-            <div class="kanban-col">
-              <div class="kanban-col-title">created</div>
-              <div class="kanban-dropzone" data-status="created" id="col-created"></div>
+      <div class="content">
+        <div class="views">
+          <div class="view view-active" id="view-calendar">
+            <div class="mini" style="margin-bottom:8px;">Calendar: two previous weeks, current week, two next weeks. Only tasks are displayed (no subtasks)..</div>
+            <div class="calendar" id="calendarGrid"></div>
+          </div>
+          <div class="view" id="view-kanban">
+            <div class="kanban" id="kanbanRoot">
+              <div class="kanban-col">
+                <div class="kanban-col-title">created</div>
+                <div class="kanban-dropzone" data-status="created" id="col-created"></div>
+              </div>
+              <div class="kanban-col">
+                <div class="kanban-col-title">at work</div>
+                <div class="kanban-dropzone" data-status="in_progress" id="col-in_progress"></div>
+              </div>
+              <div class="kanban-col">
+                <div class="kanban-col-title">completed</div>
+                <div class="kanban-dropzone" data-status="done" id="col-done"></div>
+              </div>
             </div>
-            <div class="kanban-col">
-              <div class="kanban-col-title">at work</div>
-              <div class="kanban-dropzone" data-status="in_progress" id="col-in_progress"></div>
             </div>
-            <div class="kanban-col">
-              <div class="kanban-col-title">completed</div>
-              <div class="kanban-dropzone" data-status="done" id="col-done"></div>
-            </div>
+          <div class="view" id="view-tree">
+            <div class="mini" style="margin-bottom:8px;">Tree: directions → subdirections → projects → tasks → subtasks.</div>
+            <div class="tree-container" id="fullTree"></div>
           </div>
         </div>
-        <div class="view" id="view-tree">
-          <div class="mini" style="margin-bottom:8px;">Tree: directions → subdirections → projects → tasks → subtasks.</div>
-          <div class="tree-container" id="fullTree"></div>
+      </div>
+    </div>
+
+    <div id="messengerWorkspace" class="hidden">
+      <div class="messenger-layout">
+        <div class="messenger-card">
+          <div class="messenger-title">единый мессенджер</div>
+          <div class="messenger-subtitle">Объединяйте переписки из Telegram и Gmail рядом с задачником.</div>
+          <div class="messenger-grid">
+            <div>
+              <div class="form-row"><label class="form-label">Telegram аккаунт</label><input class="form-input" id="tgAccount" placeholder="@username" /></div>
+              <div class="form-row"><label class="form-label">Gmail ящики</label><textarea class="form-textarea" id="gmailAccounts" placeholder="user1@gmail.com, user2@gmail.com"></textarea></div>
+              <div class="form-actions">
+                <button class="btn-small" id="saveMessenger">Сохранить источники</button>
+                <button class="btn-ghost" id="testMessenger">Тестовое сообщение</button>
+              </div>
+            </div>
+            <div>
+              <div class="messenger-note" id="messengerStatus">Укажите @аккаунт Telegram и список Gmail-ящиков, чтобы связать коммуникации.</div>
+              <div class="mini" style="margin-top:8px;">Настоящая интеграция потребует подключения через API Telegram Bot и OAuth Gmail. Здесь фиксируются ваши настройки и черновые параметры подключения.</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1126,8 +1170,71 @@ const PIN_LENGTH = 8;
     }
 
     // =====================
+    // РЕЖИМЫ: ЗАДАЧИ / МЕССЕНДЖЕР
+    // =====================
+    const DEFAULT_MESSENGER_HINT = 'Укажите @аккаунт Telegram и список Gmail-ящиков, чтобы связать коммуникации.';
+
+    function setAppMode(mode){
+      const isMessenger = mode === 'messenger';
+      document.getElementById('taskWorkspace').classList.toggle('hidden', isMessenger);
+      document.getElementById('messengerWorkspace').classList.toggle('hidden', !isMessenger);
+      document.querySelectorAll('#modeToggle .mode-button').forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      localStorage.setItem('app_mode', mode);
+    }
+
+    function initModeToggle(){
+      const savedMode = localStorage.getItem('app_mode') || 'tasks';
+      document.querySelectorAll('#modeToggle .mode-button').forEach(btn=>{
+        btn.addEventListener('click', ()=> setAppMode(btn.dataset.mode));
+      });
+      setAppMode(savedMode);
+    }
+
+    function renderMessengerStatus(text){
+      const node = document.getElementById('messengerStatus');
+      if(node){ node.textContent = text || DEFAULT_MESSENGER_HINT; }
+    }
+
+    function loadMessengerSettings(){
+      const data = JSON.parse(localStorage.getItem('messenger_settings') || '{}');
+      document.getElementById('tgAccount').value = data.telegram || '';
+      document.getElementById('gmailAccounts').value = (data.gmail || []).join(', ');
+      if(data.telegram || (data.gmail||[]).length){
+        renderMessengerStatus('Загружены источники: ' + [data.telegram, (data.gmail||[]).join(', ')].filter(Boolean).join(' | '));
+      } else {
+        renderMessengerStatus(DEFAULT_MESSENGER_HINT);
+      }
+    }
+
+    function saveMessengerSettings(){
+      const telegram = (document.getElementById('tgAccount').value || '').trim();
+      const gmail = (document.getElementById('gmailAccounts').value || '').split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
+      const payload = { telegram, gmail };
+      localStorage.setItem('messenger_settings', JSON.stringify(payload));
+      if(telegram || gmail.length){
+        renderMessengerStatus('Источники сохранены локально: ' + [telegram, gmail.join(', ')].filter(Boolean).join(' | '));
+      } else {
+        renderMessengerStatus(DEFAULT_MESSENGER_HINT);
+      }
+    }
+
+    function sendMessengerTest(){
+      const telegram = (document.getElementById('tgAccount').value || '').trim();
+      const gmail = (document.getElementById('gmailAccounts').value || '').split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
+      if(!telegram && !gmail.length){
+        renderMessengerStatus('Сначала заполните Telegram или Gmail источники.');
+        return;
+      }
+      renderMessengerStatus('Эмуляция отправки: Telegram ' + (telegram || '-') + ', Gmail: ' + (gmail.join(', ') || '-'));
+    }
+
+    // =====================
     // ОБРАБОТЧИКИ UI
     // =====================
+    document.getElementById('saveMessenger').addEventListener('click', saveMessengerSettings);
+    document.getElementById('testMessenger').addEventListener('click', sendMessengerTest);
     document.getElementById('saveSupabase').addEventListener('click', async ()=>{
   const pin = getPinValue();
 
@@ -1219,6 +1326,8 @@ const PIN_LENGTH = 8;
       if(savedPin && (!localStorage.getItem('sb_url') || !localStorage.getItem('sb_key'))){
         applySupabasePreset();
       }
+      initModeToggle();
+      loadMessengerSettings();
       initViewSwitch();
       updateCreateVisibility();
       await initSupabase();
